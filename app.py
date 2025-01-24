@@ -151,6 +151,8 @@ class WorkerForYolo(QThread):
         total = len(data)
 
         for d in data:
+            if (self.flag == True):
+                return
             idx += 1
             f = open(self.path + "/labels/" + d + ".txt", 'r')
             tmp = f.readlines()
@@ -168,7 +170,9 @@ class WorkerForYolo(QThread):
             sum_precision += precision
             sum_recall += recall
             sum_mAP += mAP
+            # print([pre, ref])
             report.append([d, precision, recall, acc, mAP])
+            print("[" + str(idx) + "/" + str(total) + "] img_name: " + d + ", [P, R, A, mAP]: " + str([precision, recall, acc, mAP]))
             self.sig.emit(int(idx / total * 100))
 
         total_avr_acc = sum_accuracy / total
@@ -177,7 +181,7 @@ class WorkerForYolo(QThread):
         total_avr_map = sum_mAP / total
 
         self.rep.emit(report, [total_avr_prc, total_avr_rec, total_avr_acc, total_avr_map], 1)
-        print("Total Average Accuracy = " + str([total_avr_prc, total_avr_rec, total_avr_acc, total_avr_map]))
+        print("Total Average Score = " + str([total_avr_prc, total_avr_rec, total_avr_acc, total_avr_map]))
         del self.model
         torch.cuda.empty_cache()
 
@@ -326,7 +330,7 @@ class MainWindow(QMainWindow):
                 for i in range(len(r)):
                     worksheet.write(row, i, r[i])
                 row += 1
-            worksheet.write(row + 1, 0, "total average accuracy")
+            worksheet.write(row + 1, 0, "total average score")
             worksheet.write(row + 1, 1, str(avr[0]))
             worksheet.write(row + 1, 2, str(avr[1]))
             worksheet.write(row + 1, 3, str(avr[2]))

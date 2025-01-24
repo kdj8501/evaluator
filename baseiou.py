@@ -29,12 +29,21 @@ def getIOU(list1, list2):
     y6 = min(y2, y4)
     sq3 = (x6 - x5) * (y6 - y5)
     iou = sq3 / (sq1 + sq2 - sq3)
+    # if (iou < 0.5 and iou > 0.0):
+    #     print([iou, list1, list2])
     return iou
 
 def getAccuracy(ref, pre, thres):
     tp = 0
     fp = 0
     fn = 0
+    for r in ref:
+        maxIOU = 0.0
+        for p in pre:
+            iou = getIOU(r, p)
+            maxIOU = max(maxIOU, iou)
+        if (maxIOU == 0.0):
+            fn += 1
     for p in pre:
         maxIOU = 0.0
         ref_type = -1
@@ -50,13 +59,6 @@ def getAccuracy(ref, pre, thres):
                 tp += 1
             else:
                 fp += 1
-    for r in ref:
-        maxIOU = 0.0
-        for p in pre:
-            iou = getIOU(r, p)
-            maxIOU = max(maxIOU, iou)
-        if (maxIOU == 0.0):
-            fn += 1
     if (tp + fp + fn == 0.0):
         return 0.0
     return tp / (tp + fp + fn)
@@ -108,8 +110,16 @@ def getAP(ref, pre, len, thres):
     tmp = []
     tp = 0
     fp = 0
+    fn = 0
     if (len == 0):
         return 0.0
+    for r in ref:
+        maxIOU = 0.0
+        for p in pre:
+            iou = getIOU(r, p)
+            maxIOU = max(maxIOU, iou)
+        if (maxIOU == 0.0):
+            fn += 1
     for p in pre:
         maxIOU = 0.0
         ref_type = -1
@@ -125,6 +135,7 @@ def getAP(ref, pre, len, thres):
                 tp += 1
             else:
                 fp += 1
+
         if (tp + fp == 0.0):
             tmp.append([0.0, 0.0])
         else:

@@ -4,7 +4,6 @@ test.py
 final_model.pth
 best_checkpoint.pth
 vocab.pkl
-paligemma.py
 __pycache__/
 runs/
 report/
