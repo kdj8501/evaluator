@@ -8,4 +8,5 @@ __pycache__/
 runs/
 report/
 yolo11x.pt
+yolo11x-seg.pt
 yolo11x.torchscript

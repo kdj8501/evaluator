@@ -1,3 +1,16 @@
+import numpy as np
+
+def getIOU_np(ref, pre):
+    intersection = np.logical_and(ref, pre)
+    union = np.logical_or(ref, pre)
+    iou = np.sum(intersection) / np.sum(union)
+    return iou
+
+def getDiceCoefficient(ref, pre):
+    intersection = np.logical_and(ref, pre)
+    smooth = 1e-6
+    dice = (2. * np.sum(intersection) + smooth) / (np.sum(pre) + np.sum(ref) + smooth)
+    return dice
 
 def getIOU(list1, list2):
     x1 = list1[1]

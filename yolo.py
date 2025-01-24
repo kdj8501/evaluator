@@ -28,9 +28,11 @@ def get_result_yolo(path, model):
                 del(p)
     return pre
 
-path = 'C:/Users/koo/Desktop/labeling/test2/images/'
-model = YOLO('yolo11x.pt')
-model.predict(path + "bandicam-2025-01-23-09-55-34-532_jpg.rf.949978e7322e14e093a5ce33546b6ca8.jpg", save = True)
-model.predict(path + "bandicam-2025-01-23-09-56-10-160_jpg.rf.156accc366cb93b72c21aa5b75fa9464.jpg", save = True)
-model.predict(path + "bandicam-2025-01-23-09-56-31-810_jpg.rf.1964939a01112632b6e201a727512e6a.jpg", save = True)
-model.predict()
+# path = 'C:/Users/koo/workspace/dataset/labeling/test2/images/'
+# file = 'bandicam-2025-01-23-09-55-34-532_jpg.rf.949978e7322e14e093a5ce33546b6ca8.jpg'
+# model = YOLO('yolo11x-seg.pt')
+# model.predict(path + file, save = True, show_boxes = False, show_conf = False, show_labels = False)
+# model.predict(path + "bandicam-2025-01-23-09-55-34-532_jpg.rf.949978e7322e14e093a5ce33546b6ca8.jpg", save = True)
+# model.predict(path + "bandicam-2025-01-23-09-56-10-160_jpg.rf.156accc366cb93b72c21aa5b75fa9464.jpg", save = True)
+# model.predict(path + "bandicam-2025-01-23-09-56-31-810_jpg.rf.1964939a01112632b6e201a727512e6a.jpg", save = True)
+# model.predict()

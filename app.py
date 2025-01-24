@@ -185,6 +185,67 @@ class WorkerForYolo(QThread):
         del self.model
         torch.cuda.empty_cache()
 
+class WorkerForSeg(QThread):
+    sig = pyqtSignal(int)
+    rep = pyqtSignal(list, list, int)
+
+    def __init__(self, model, path, thres):
+        super().__init__()
+        self.model = model
+        self.path = path
+        self.flag = False
+        self.thres = thres
+
+    def thread_stop(self):
+        self.flag = True
+
+    def run(self):
+        report = []
+        idx = 0
+        sum_accuracy = 0.0
+        sum_precision = 0.0
+        sum_recall = 0.0
+        sum_mAP = 0.0
+        data = os.listdir(self.path + "/images")
+        for i in range(len(data)):
+            data[i] = data[i][:data[i].rfind(".")]
+        total = len(data)
+
+        for d in data:
+            if (self.flag == True):
+                return
+            idx += 1
+            f = open(self.path + "/labels/" + d + ".txt", 'r')
+            tmp = f.readlines()
+            f.close()
+            ref = []
+            for t in tmp:
+                tt = t.split(" ")
+                ref.append([int(tt[0]), float(tt[1]), float(tt[2]), float(tt[3]), float(tt[4])])
+            pre = yolo.get_result_yolo(self.path + "/images/" + d + ".jpg", self.model)
+            precision = baseiou.getPrecision(ref, pre, self.thres)
+            recall = baseiou.getRecall(ref, pre, self.thres)
+            acc = baseiou.getAccuracy(ref, pre, self.thres)
+            mAP = baseiou.getmAP(ref, pre, self.thres)
+            sum_accuracy += acc
+            sum_precision += precision
+            sum_recall += recall
+            sum_mAP += mAP
+            # print([pre, ref])
+            report.append([d, precision, recall, acc, mAP])
+            print("[" + str(idx) + "/" + str(total) + "] img_name: " + d + ", [P, R, A, mAP]: " + str([precision, recall, acc, mAP]))
+            self.sig.emit(int(idx / total * 100))
+
+        total_avr_acc = sum_accuracy / total
+        total_avr_prc = sum_precision / total
+        total_avr_rec = sum_recall / total
+        total_avr_map = sum_mAP / total
+
+        self.rep.emit(report, [total_avr_prc, total_avr_rec, total_avr_acc, total_avr_map], 1)
+        print("Total Average Score = " + str([total_avr_prc, total_avr_rec, total_avr_acc, total_avr_map]))
+        del self.model
+        torch.cuda.empty_cache()
+
 ################################## GUI ##################################
 class MainWindow(QMainWindow):
     excel_path = ""
@@ -223,6 +284,8 @@ class MainWindow(QMainWindow):
         self.radio3 = QRadioButton("YOLO v11x", self)
         self.radio3.move(280, 90)
         self.radio3.setChecked(True)
+        self.radio4 = QRadioButton("segmentation", self)
+        self.radio4.move(280, 90)
 
         self.excelBtn = QPushButton("결과 출력 위치", self)
         self.excelBtn.move(10, 120)
@@ -249,6 +312,8 @@ class MainWindow(QMainWindow):
                 self.__class__.sel = 1
             elif (self.radio3.isChecked()):
                 self.__class__.sel = 2
+            elif (self.radio4.isChecked()):
+                self.__class__.sel = 3
 
             self.testBtn.setText("테스트 중지")
 
@@ -286,6 +351,14 @@ class MainWindow(QMainWindow):
             elif (self.sel == 2):
                 self.model = YOLO('yolo11x.pt')
                 self.worker = WorkerForYolo(self.model, self.__class__.data_path, self.__class__.thres)
+                self.worker.start()
+                self.worker.sig.connect(self.process)
+                self.worker.rep.connect(self.report)
+                del self.model
+                torch.cuda.empty_cache()
+            elif (self.sel == 3):
+                self.model = ''
+                self.worker = WorkerForSeg(self.model, self.__class__.data_path, self.__class__.thres)
                 self.worker.start()
                 self.worker.sig.connect(self.process)
                 self.worker.rep.connect(self.report)
