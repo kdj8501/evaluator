@@ -8,8 +8,9 @@ def getIOU_np(ref, pre):
 
 def getDiceCoefficient(ref, pre):
     intersection = np.logical_and(ref, pre)
-    smooth = 1e-6
-    dice = (2. * np.sum(intersection) + smooth) / (np.sum(pre) + np.sum(ref) + smooth)
+    a = np.logical_and(ref, ref)
+    b = np.logical_and(pre, pre)
+    dice = (2. * np.sum(intersection)) / (np.sum(a) + np.sum(b))
     return dice
 
 def getIOU(list1, list2):
@@ -237,38 +238,14 @@ def getmAP(ref, pre, thres):
     return mAP
 
 def run():
-    ref = []
-    ref.append([0, 0.740625, 0.7140625, 0.03203125, 0.10625])
-    ref.append([2, 0.3890625, 0.540625, 0.05625, 0.08359375])
-    ref.append([2, 0.51875, 0.74921875, 0.0765625, 0.14140625])
-    ref.append([2, 0.17890625, 0.415625, 0.0328125, 0.04140625])
-    ref.append([2, 0.17109375, 0.36640625, 0.0234375, 0.0296875])
-    ref.append([2, 0.225, 0.31171875, 0.01171875, 0.015625])
-    ref.append([2, 0.09609375, 0.53203125, 0.071875, 0.08671875])
-    ref.append([2, 0.28203125, 0.271875, 0.0078125, 0.01640625])
-    ref.append([7, 0.1078125, 0.43828125, 0.04609375, 0.065625])
-    ref.append([2, 0.21015625, 0.31953125, 0.0125, 0.01953125])
-    ref.append([2, 0.21015625, 0.31953125, 0.0125, 0.01953125])
-    ref.append([2, 0.29921875, 0.27265625, 0.00625, 0.0078125])
-    ref.append([2, 0.1828125, 0.27421875, 0.00625, 0.00859375])
-    ref.append([2, 0.11640625, 0.284375, 0.01953125, 0.015625])
-    pre = []
-    pre.append([2, 0.5197, 0.7490, 0.0814, 0.1436])
-    pre.append([2, 0.3904, 0.5411, 0.0571, 0.0842])
-    pre.append([2, 0.1792, 0.4162, 0.0350, 0.0418])
-    pre.append([7, 0.1076, 0.4394, 0.0485, 0.0671])
-    pre.append([2, 0.1711, 0.3660, 0.0263, 0.0306])
-    pre.append([0, 0.7412, 0.7089, 0.0331, 0.0933])
-    pre.append([2, 0.2101, 0.3214, 0.0155, 0.0195])
-    pre.append([7, 0.0961, 0.5324, 0.0750, 0.0874])
-    pre.append([2, 0.2257, 0.3165, 0.0157, 0.0117])
-    pre.append([2, 0.0961, 0.5322, 0.0755, 0.0875])
-
-    print("accuracy: " + str(getAccuracy(ref, pre, 0.5)))
-    print("precision: " + str(getPrecision(ref, pre, 0.5)))
-    print("recall: " + str(getRecall(ref, pre, 0.5)))
-    print("f1: " + str(getF1(ref, pre, 0.5)))
-    print("mAP: " + str(getmAP(ref, pre, 0.5)))
+    from PIL import Image
+    img1 = Image.open('C:/Users/koo/workspace/dataset/0_mask.png')
+    img2 = Image.open('C:/Users/koo/workspace/dataset/0_pred.png')
+    n1 = np.array(img1)
+    n1 = n1[:, :, :3]
+    n2 = np.array(img2)
+    print("IOU = " + str(getIOU_np(n1, n2)))
+    print("DiceCoefficient = " + str(getDiceCoefficient(n1, n2)))
     
 if __name__ == '__main__':
     run()
