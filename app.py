@@ -149,7 +149,9 @@ class WorkerForYolo(QThread):
         for i in range(len(data)):
             data[i] = data[i][:data[i].rfind(".")]
         total = len(data)
-
+        total_cls_sum = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        total_cls = [0, 0, 0, 0, 0, 0]
+        total_cls_avr = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
         for d in data:
             if (self.flag == True):
                 return
@@ -162,6 +164,22 @@ class WorkerForYolo(QThread):
                 tt = t.split(" ")
                 ref.append([int(tt[0]), float(tt[1]), float(tt[2]), float(tt[3]), float(tt[4])])
             pre = yolo.get_result_yolo(self.path + "/images/" + d + ".jpg", self.model)
+            ref_cls = [[], [], [], [], [], []]
+            pre_cls = [[], [], [], [], [], []]
+            ap_cls = [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0]
+            for i in range(6):
+                for p in pre:
+                    if (p[0] == i):
+                        pre_cls[i].append(p)
+                for r in ref:
+                    if (r[0] == i):
+                        ref_cls[i].append(r)
+                if not (len(pre_cls[i]) == 0 and len(ref_cls[i]) == 0):
+                    ap_cls[i] = baseiou.getAP(ref_cls[i], pre_cls[i], self.thres)
+                    total_cls_sum[i] += ap_cls[i]
+                    total_cls[i] += 1
+
+
             precision = baseiou.getPrecision(ref, pre, self.thres)
             recall = baseiou.getRecall(ref, pre, self.thres)
             acc = baseiou.getAccuracy(ref, pre, self.thres)
@@ -171,7 +189,7 @@ class WorkerForYolo(QThread):
             sum_recall += recall
             sum_mAP += mAP
             # print([pre, ref])
-            report.append([d, precision, recall, acc, mAP])
+            report.append([d, precision, recall, acc, mAP, ap_cls[0], ap_cls[1], ap_cls[2], ap_cls[3], ap_cls[4], ap_cls[5]])
             print("[" + str(idx) + "/" + str(total) + "] img_name: " + d + ", [P, R, A, mAP]: " + str([precision, recall, acc, mAP]))
             self.sig.emit(int(idx / total * 100))
 
@@ -179,8 +197,15 @@ class WorkerForYolo(QThread):
         total_avr_prc = sum_precision / total
         total_avr_rec = sum_recall / total
         total_avr_map = sum_mAP / total
+        for i in range(6):
+            if (total_cls[i] == 0):
+                total_cls_avr[i] = -1.0
+                continue
+            total_cls_avr[i] = total_cls_sum[i] / total_cls[i]
 
-        self.rep.emit(report, [total_avr_prc, total_avr_rec, total_avr_acc, total_avr_map], 1)
+        self.rep.emit(report, [total_avr_prc, total_avr_rec, total_avr_acc, total_avr_map,
+                               total_cls_avr[0], total_cls_avr[1], total_cls_avr[2],
+                               total_cls_avr[3], total_cls_avr[4], total_cls_avr[5]], 1)
         print("Total Average Score = " + str([total_avr_prc, total_avr_rec, total_avr_acc, total_avr_map]))
         del self.model
         torch.cuda.empty_cache()
@@ -398,6 +423,12 @@ class MainWindow(QMainWindow):
             worksheet.write(0, 2, "recall")
             worksheet.write(0, 3, "accuracy")
             worksheet.write(0, 4, "mAP." + str(int(round(self.__class__.thres, 2) * 100)))
+            worksheet.write(0, 5, "bicycle AP")
+            worksheet.write(0, 6, "bus AP")
+            worksheet.write(0, 7, "car AP")
+            worksheet.write(0, 8, "motorcycle AP")
+            worksheet.write(0, 9, "person AP")
+            worksheet.write(0, 10, "truck AP")
             row = 1
             for r in rep:
                 for i in range(len(r)):
@@ -408,6 +439,12 @@ class MainWindow(QMainWindow):
             worksheet.write(row + 1, 2, str(avr[1]))
             worksheet.write(row + 1, 3, str(avr[2]))
             worksheet.write(row + 1, 4, str(avr[3]))
+            worksheet.write(row + 1, 5, str(avr[4]))
+            worksheet.write(row + 1, 6, str(avr[5]))
+            worksheet.write(row + 1, 7, str(avr[6]))
+            worksheet.write(row + 1, 8, str(avr[7]))
+            worksheet.write(row + 1, 9, str(avr[8]))
+            worksheet.write(row + 1, 10, str(avr[9]))
             workbook.close()
 
     def process(self, num):

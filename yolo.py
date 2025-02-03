@@ -1,4 +1,5 @@
 from ultralytics import YOLO
+from baseiou import getIOU_spec
 
 def get_result_yolo(path, model):
     pre = []
@@ -31,6 +32,21 @@ def get_result_yolo(path, model):
                 del(pre[idx])
                 continue
             idx += 1
+    # 차량 사람 보정
+    iidx = 0
+    for i in range(len(pre)):
+        flag = True
+        if (pre[iidx][0] == 4):
+            for j in range(len(pre)):
+                if (pre[j][0] != 4):
+                    if (getIOU_spec(pre[j], pre[iidx]) > 0.9):
+                        del(pre[iidx])
+                        flag = False
+                        break
+        if (flag):
+            iidx += 1
+        else:
+            flag = True
     return pre
 
 # path = 'C:/Users/koo/workspace/dataset/labeling/test2/images/'
