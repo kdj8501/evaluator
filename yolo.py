@@ -9,23 +9,28 @@ def get_result_yolo(path, model):
         idx = 0
         for c in r.boxes.cls: # cls id 보정
             cls = int(c)
-            if (cls == 0 or cls == 4 or cls == 6 or cls > 7): # 사람, 비행기, 기차, 보트, 이 외 사물 제외
+            if (cls == 4 or cls == 6 or cls > 7): # 비행기, 기차, 보트, 이 외 사물 제외
                 cls = -1
-            elif (cls == 1): # bicycle 보정
-                cls = 2
-            elif (cls == 2): # car 보정
-                cls = 1 
-            elif (cls == 3): # motorcycle 보정
-                cls = 2
-            elif (cls == 5): # bus 보정
-                cls = 0
-            elif (cls == 7): # truck 보정
+            if (cls == 0): # Person 보정
                 cls = 4
+            elif (cls == 1): # bicycle 보정
+                cls = 0
+            elif (cls == 2): # car 보정
+                cls = 2 
+            elif (cls == 3): # motorcycle 보정
+                cls = 3
+            elif (cls == 5): # bus 보정
+                cls = 1
+            elif (cls == 7): # truck 보정
+                cls = 5
             pre[idx].insert(0, cls)
             idx += 1
-        for p in pre:
-            if (p[0] == -1):
-                del(p)
+        idx = 0
+        for i in range(len(pre)):
+            if (pre[idx][0] == -1):
+                del(pre[idx])
+                continue
+            idx += 1
     return pre
 
 # path = 'C:/Users/koo/workspace/dataset/labeling/test2/images/'

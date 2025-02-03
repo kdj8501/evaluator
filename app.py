@@ -252,7 +252,7 @@ class MainWindow(QMainWindow):
     data_path = ""
     model_path = ""
     thres = 0.0
-    sel = 0 # 0: ResNet & LSTM, 1: PaliGemma2, 2: YOLO v11x
+    sel = 0 # 0: ResNet & LSTM, 1: PaliGemma2, 2: YOLO v11x, 3: deepLabV3
 
     def __init__(self):
         super().__init__()
@@ -284,8 +284,8 @@ class MainWindow(QMainWindow):
         self.radio3 = QRadioButton("YOLO v11x", self)
         self.radio3.move(280, 90)
         self.radio3.setChecked(True)
-        self.radio4 = QRadioButton("segmentation", self)
-        self.radio4.move(280, 90)
+        # self.radio4 = QRadioButton("segmentation", self)
+        # self.radio4.move(280, 90)
 
         self.excelBtn = QPushButton("결과 출력 위치", self)
         self.excelBtn.move(10, 120)
@@ -312,8 +312,8 @@ class MainWindow(QMainWindow):
                 self.__class__.sel = 1
             elif (self.radio3.isChecked()):
                 self.__class__.sel = 2
-            elif (self.radio4.isChecked()):
-                self.__class__.sel = 3
+            # elif (self.radio4.isChecked()):
+            #     self.__class__.sel = 3
 
             self.testBtn.setText("테스트 중지")
 

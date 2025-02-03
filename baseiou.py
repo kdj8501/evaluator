@@ -48,6 +48,11 @@ def getIOU(list1, list2):
     return iou
 
 def getAccuracy(ref, pre, thres):
+    if (len(ref) == 0):
+        if (len(pre) == 0):
+            return 1.0
+        else:
+            return 0.0
     tp = 0
     fp = 0
     fn = 0
@@ -73,12 +78,19 @@ def getAccuracy(ref, pre, thres):
                 tp += 1
             else:
                 fp += 1
+        else:
+            fp += 1
     if (tp + fp + fn == 0.0):
         return 0.0
     return tp / (tp + fp + fn)
 
 def getPrecision(ref, pre, thres):
-    if (len(pre) == 0.0):
+    if (len(ref) == 0):
+        if (len(pre) == 0):
+            return 1.0
+        else:
+            return 0.0
+    if (len(pre) == 0):
         return 0.0
     tp = 0
     for p in pre:
@@ -97,8 +109,11 @@ def getPrecision(ref, pre, thres):
     return tp / len(pre)
 
 def getRecall(ref, pre, thres):
-    if (len(ref) == 0.0):
-        return 0.0
+    if (len(ref) == 0):
+        if (len(pre) == 0):
+            return 1.0
+        else:
+            return 0.0
     tp = 0
     for p in pre:
         maxIOU = 0.0
@@ -120,7 +135,12 @@ def getF1(ref, pre, thres):
         return 0.0
     return 2 * (getPrecision(ref, pre, thres) * getRecall(ref, pre, thres)) / (getPrecision(ref, pre, thres) + getRecall(ref, pre, thres))
 
-def getAP(ref, pre, len, thres):
+def getAP(ref, pre, length, thres):
+    if (len(ref) == 0):
+        if (len(pre) == 0):
+            return 1.0
+        else:
+            return 0.0
     tmp = []
     tp = 0
     fp = 0
@@ -153,7 +173,7 @@ def getAP(ref, pre, len, thres):
         if (tp + fp == 0.0):
             tmp.append([0.0, 0.0])
         else:
-            tmp.append([round(tp / (tp + fp), 3), round(tp / len, 1)])
+            tmp.append([round(tp / (tp + fp), 3), round(tp / length, 1)])
 
     # print("[precision, recall] by sequential")
     # print(tmp)
@@ -234,6 +254,8 @@ def getmAP(ref, pre, thres):
     sumAP = 0
     for a in ap:
         sumAP += a
+    if (len(ap) == 0):
+        return 0.0
     mAP = sumAP / len(ap)
     return mAP
 
