@@ -86,6 +86,9 @@ def getAccuracy(ref, pre, thres):
             return 1.0
         else:
             return 0.0
+    else:
+        if (len(pre) == 0):
+            return 0.0
     tp = 0
     fp = 0
     fn = 0
@@ -111,7 +114,7 @@ def getAccuracy(ref, pre, thres):
                 tp += 1
             else:
                 fp += 1
-        else:
+        elif (maxIOU > 0 and maxIOU < thres):
             fp += 1
     if (tp + fp + fn == 0.0):
         return 0.0
@@ -175,6 +178,8 @@ def getAP(ref, pre, thres):
             return 1.0
         else:
             return 0.0
+    elif (len(pre) == 0):
+        return 0.0
     tmp = []
     tp = 0
     fp = 0
@@ -205,7 +210,7 @@ def getAP(ref, pre, thres):
                 fp += 1
 
         if (tp + fp == 0.0):
-            tmp.append([0.0, 0.0])
+            tmp.append([0.0, round(tp / length, 1)])
         else:
             tmp.append([round(tp / (tp + fp), 3), round(tp / length, 1)])
 
@@ -264,6 +269,13 @@ def getAP(ref, pre, thres):
 def getmAP(ref, pre, thres):
     refcls = {}
     precls = {}
+    if (len(ref) == 0):
+        if (len(pre) == 0):
+            return 1.0
+        else:
+            return 0.0
+    elif (len(pre) == 0):
+        return 0.0
 
     for r in ref:
         if (str(r[0]) in refcls):
@@ -289,7 +301,7 @@ def getmAP(ref, pre, thres):
     for a in ap:
         sumAP += a
     if (len(ap) == 0):
-        return 0.0
+        return -1
     mAP = sumAP / len(ap)
     return mAP
 

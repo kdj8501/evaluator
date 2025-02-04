@@ -164,6 +164,11 @@ class WorkerForYolo(QThread):
                 tt = t.split(" ")
                 ref.append([int(tt[0]), float(tt[1]), float(tt[2]), float(tt[3]), float(tt[4])])
             pre = yolo.get_result_yolo(self.path + "/images/" + d + ".jpg", self.model)
+            #####
+            pre = yolo.driver_processing(pre)
+            ref = yolo.roi_processing(ref, 0.125, 0.5, 0.875, 0.5)
+            pre = yolo.roi_processing(pre, 0.125, 0.5, 0.875, 0.5)
+            #####
             ref_cls = [[], [], [], [], [], []]
             pre_cls = [[], [], [], [], [], []]
             ap_cls = [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0]
@@ -178,7 +183,6 @@ class WorkerForYolo(QThread):
                     ap_cls[i] = baseiou.getAP(ref_cls[i], pre_cls[i], self.thres)
                     total_cls_sum[i] += ap_cls[i]
                     total_cls[i] += 1
-
 
             precision = baseiou.getPrecision(ref, pre, self.thres)
             recall = baseiou.getRecall(ref, pre, self.thres)
