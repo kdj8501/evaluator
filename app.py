@@ -163,7 +163,7 @@ class WorkerForYolo(QThread):
             for t in tmp:
                 tt = t.split(" ")
                 ref.append([int(tt[0]), float(tt[1]), float(tt[2]), float(tt[3]), float(tt[4])])
-            pre = yolo.get_result_yolo(self.path + "/images/" + d + ".jpg", self.model)
+            pre = yolo.get_result_yolo(self.path + "/images/" + d + ".jpg", self.model, True)
             #####
             pre = yolo.driver_processing(pre)
             ref = yolo.roi_processing(ref, 0.125, 0.5, 0.875, 0.5)
@@ -378,7 +378,7 @@ class MainWindow(QMainWindow):
                 del self.model
                 torch.cuda.empty_cache()
             elif (self.sel == 2):
-                self.model = YOLO('yolo11x.pt')
+                self.model = YOLO('best.pt')
                 self.worker = WorkerForYolo(self.model, self.__class__.data_path, self.__class__.thres)
                 self.worker.start()
                 self.worker.sig.connect(self.process)
