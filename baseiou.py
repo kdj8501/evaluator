@@ -47,7 +47,48 @@ def getIOU(list1, list2):
     #     print([iou, list1, list2])
     return iou
 
+def getIOU_spec(list1, list2):
+    x1 = list1[1]
+    y1 = list1[2]
+    w1 = list1[3]
+    h1 = list1[4]
+    x2 = x1 + w1
+    y2 = y1 + h1
+
+    x3 = list2[1]
+    y3 = list2[2]
+    w2 = list2[3]
+    h2 = list2[4]
+    x4 = x3 + w2
+    y4 = y3 + h2
+
+    sq1 = (w1 * h1)
+    sq2 = (w2 * h2)
+    maxx = max(x1, x2, x3, x4)
+    minx = min(x1, x2, x3, x4)
+    maxy = max(y1, y2, y3, y4)
+    miny = min(y1, y2, y3, y4)
+    if (maxx - minx > w1 + w2 or maxy - miny > h1 + h2):
+        return 0.0
+    
+    x5 = max(x1, x3)
+    x6 = min(x2, x4)
+    y5 = max(y1, y3)
+    y6 = min(y2, y4)
+    sq3 = (x6 - x5) * (y6 - y5)
+    iou = sq3 / sq2
+
+    return iou
+
 def getAccuracy(ref, pre, thres):
+    if (len(ref) == 0):
+        if (len(pre) == 0):
+            return 1.0
+        else:
+            return 0.0
+    else:
+        if (len(pre) == 0):
+            return 0.0
     tp = 0
     fp = 0
     fn = 0
@@ -73,12 +114,19 @@ def getAccuracy(ref, pre, thres):
                 tp += 1
             else:
                 fp += 1
+        elif (maxIOU > 0 and maxIOU < thres):
+            fp += 1
     if (tp + fp + fn == 0.0):
         return 0.0
     return tp / (tp + fp + fn)
 
 def getPrecision(ref, pre, thres):
-    if (len(pre) == 0.0):
+    if (len(ref) == 0):
+        if (len(pre) == 0):
+            return 1.0
+        else:
+            return 0.0
+    if (len(pre) == 0):
         return 0.0
     tp = 0
     for p in pre:
@@ -97,8 +145,11 @@ def getPrecision(ref, pre, thres):
     return tp / len(pre)
 
 def getRecall(ref, pre, thres):
-    if (len(ref) == 0.0):
-        return 0.0
+    if (len(ref) == 0):
+        if (len(pre) == 0):
+            return 1.0
+        else:
+            return 0.0
     tp = 0
     for p in pre:
         maxIOU = 0.0
@@ -120,7 +171,15 @@ def getF1(ref, pre, thres):
         return 0.0
     return 2 * (getPrecision(ref, pre, thres) * getRecall(ref, pre, thres)) / (getPrecision(ref, pre, thres) + getRecall(ref, pre, thres))
 
-def getAP(ref, pre, len, thres):
+def getAP(ref, pre, thres):
+    length = len(ref)
+    if (length == 0):
+        if (len(pre) == 0):
+            return 1.0
+        else:
+            return 0.0
+    elif (len(pre) == 0):
+        return 0.0
     tmp = []
     tp = 0
     fp = 0
@@ -151,9 +210,9 @@ def getAP(ref, pre, len, thres):
                 fp += 1
 
         if (tp + fp == 0.0):
-            tmp.append([0.0, 0.0])
+            tmp.append([0.0, round(tp / length, 1)])
         else:
-            tmp.append([round(tp / (tp + fp), 3), round(tp / len, 1)])
+            tmp.append([round(tp / (tp + fp), 3), round(tp / length, 1)])
 
     # print("[precision, recall] by sequential")
     # print(tmp)
@@ -210,6 +269,13 @@ def getAP(ref, pre, len, thres):
 def getmAP(ref, pre, thres):
     refcls = {}
     precls = {}
+    if (len(ref) == 0):
+        if (len(pre) == 0):
+            return 1.0
+        else:
+            return 0.0
+    elif (len(pre) == 0):
+        return 0.0
 
     for r in ref:
         if (str(r[0]) in refcls):
@@ -228,12 +294,14 @@ def getmAP(ref, pre, thres):
     ap = []
     for p in precls:
         if (p in refcls):
-            ap.append(getAP(ref, precls[p], len(refcls[p]), thres))
+            ap.append(getAP(refcls[p], precls[p], thres))
         else:
             ap.append(0)
     sumAP = 0
     for a in ap:
         sumAP += a
+    if (len(ap) == 0):
+        return -1
     mAP = sumAP / len(ap)
     return mAP
 

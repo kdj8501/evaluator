@@ -10,3 +10,8 @@ report/
 yolo11x.pt
 yolo11x-seg.pt
 yolo11x.torchscript
+test/
+train/
+valid/
+data.yaml
+best.pt
