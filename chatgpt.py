@@ -2,6 +2,7 @@ import openai, base64
 
 CHATGPT_API_KEY = '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'
 CHATGPT_MODEL = 'gpt-4o-mini'
+# CHATGPT_MODEL = 'gpt-4o'
 
 def encode_image(img):
     with open(img, "rb") as img_file:
@@ -27,7 +28,6 @@ def get_result_chatgpt(img, prompt):
                 ],
             }
         ],
-        max_tokens = 300
+        max_tokens = 500
     )
-    openai.api_key = CHATGPT_API_KEY
     return response.choices[0].to_dict()['message']['content']
