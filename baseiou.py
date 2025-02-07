@@ -14,67 +14,59 @@ def getDiceCoefficient(ref, pre):
     return dice
 
 def getIOU(list1, list2):
-    x1 = list1[1]
-    y1 = list1[2]
-    w1 = list1[3]
-    h1 = list1[4]
-    x2 = x1 + w1
-    y2 = y1 + h1
-
-    x3 = list2[1]
-    y3 = list2[2]
-    w2 = list2[3]
-    h2 = list2[4]
-    x4 = x3 + w2
-    y4 = y3 + h2
-
-    sq1 = (w1 * h1)
-    sq2 = (w2 * h2)
-    maxx = max(x1, x2, x3, x4)
-    minx = min(x1, x2, x3, x4)
-    maxy = max(y1, y2, y3, y4)
-    miny = min(y1, y2, y3, y4)
-    if (maxx - minx > w1 + w2 or maxy - miny > h1 + h2):
-        return 0.0
-    
+    x = list1[1]
+    y = list1[2]
+    w = list1[3]
+    h = list1[4]
+    x1 = x - (w / 2)
+    x2 = x + (w / 2)
+    y1 = y - (h / 2)
+    y2 = y + (h / 2)
+    sq1 = w * h
+    x = list2[1]
+    y = list2[2]
+    w = list2[3]
+    h = list2[4]
+    x3 = x - (w / 2)
+    x4 = x + (w / 2)
+    y3 = y - (h / 2)
+    y4 = y + (h / 2)
+    sq2 = w * h
     x5 = max(x1, x3)
     x6 = min(x2, x4)
     y5 = max(y1, y3)
     y6 = min(y2, y4)
+    if (x6 < x5 or y6 < y5):
+        return 0.0
     sq3 = (x6 - x5) * (y6 - y5)
-    iou = sq3 / (sq1 + sq2 - sq3)
-    # if (iou < 0.5 and iou > 0.0):
-    #     print([iou, list1, list2])
+    iou = sq3 / sq1 + sq2 - sq3
     return iou
 
 def getIOU_spec(list1, list2):
-    x1 = list1[1]
-    y1 = list1[2]
-    w1 = list1[3]
-    h1 = list1[4]
-    x2 = x1 + w1
-    y2 = y1 + h1
-
-    x3 = list2[1]
-    y3 = list2[2]
-    w2 = list2[3]
-    h2 = list2[4]
-    x4 = x3 + w2
-    y4 = y3 + h2
-
-    sq1 = (w1 * h1)
-    sq2 = (w2 * h2)
-    maxx = max(x1, x2, x3, x4)
-    minx = min(x1, x2, x3, x4)
-    maxy = max(y1, y2, y3, y4)
-    miny = min(y1, y2, y3, y4)
-    if (maxx - minx > w1 + w2 or maxy - miny > h1 + h2):
-        return 0.0
-    
+    x = list1[1]
+    y = list1[2]
+    w = list1[3]
+    h = list1[4]
+    x1 = x - (w / 2)
+    x2 = x + (w / 2)
+    y1 = y - (h / 2)
+    y2 = y + (h / 2)
+    sq1 = w * h
+    x = list2[1]
+    y = list2[2]
+    w = list2[3]
+    h = list2[4]
+    x3 = x - (w / 2)
+    x4 = x + (w / 2)
+    y3 = y - (h / 2)
+    y4 = y + (h / 2)
+    sq2 = w * h
     x5 = max(x1, x3)
     x6 = min(x2, x4)
     y5 = max(y1, y3)
     y6 = min(y2, y4)
+    if (x6 < x5 or y6 < y5):
+        return 0.0
     sq3 = (x6 - x5) * (y6 - y5)
     iou = sq3 / sq2
 

@@ -1,6 +1,5 @@
 report.xlsx
 ~$report.xlsx
-test.py
 final_model.pth
 best_checkpoint.pth
 vocab.pkl
