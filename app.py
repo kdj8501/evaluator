@@ -166,8 +166,9 @@ class WorkerForYolo(QThread):
             pre = yolo.get_result_yolo(self.path + "/images/" + d + ".jpg", self.model, False)
             #####
             pre = yolo.driver_processing(pre)
-            ref = yolo.roi_processing(ref, 0.5, 0.75, 1.0, 0.5)
-            pre = yolo.roi_processing(pre, 0.5, 0.75, 1.0, 0.5)
+            roi = [0.625, 0.8, 0.75, 0.4]
+            ref = yolo.roi_processing(ref, roi)
+            pre = yolo.roi_processing(pre, roi)
             #####
             ref_cls = [[], [], [], [], [], []]
             pre_cls = [[], [], [], [], [], []]

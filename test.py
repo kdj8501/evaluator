@@ -193,3 +193,11 @@ def yolo_grid_test():
     print([count, total])
 if __name__ == '__main__':
     yolo_grid_test()
+
+#
+# prompt = 'There are 16 images of vehicles in the 4x4 area, 
+#           please answer in one word whether the vehicle in 
+#           each area is a car or a truck.
+#           The order of answers is from the top left to the right, 
+#           and from top to bottom.
+#

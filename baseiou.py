@@ -296,16 +296,3 @@ def getmAP(ref, pre, thres):
         return -1
     mAP = sumAP / len(ap)
     return mAP
-
-def run():
-    from PIL import Image
-    img1 = Image.open('C:/Users/koo/workspace/dataset/0_mask.png')
-    img2 = Image.open('C:/Users/koo/workspace/dataset/0_pred.png')
-    n1 = np.array(img1)
-    n1 = n1[:, :, :3]
-    n2 = np.array(img2)
-    print("IOU = " + str(getIOU_np(n1, n2)))
-    print("DiceCoefficient = " + str(getDiceCoefficient(n1, n2)))
-    
-if __name__ == '__main__':
-    run()

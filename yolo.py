@@ -22,23 +22,23 @@ def get_result_yolo(path, model, custom):
             for c in r.boxes.cls: # cls id 보정
                 cls = int(c)
                 if (cls == 0): # Person 보정
-                    cls = 4
-                elif (cls == 1): # bicycle 보정
-                    cls = 0
-                elif (cls == 2): # car 보정
-                    cls = 2 
-                elif (cls == 3): # motorcycle 보정
                     cls = 3
-                elif (cls == 5): # bus 보정
+                elif (cls == 1): # bicycle 보정
+                    cls = -1
+                elif (cls == 2): # car 보정
                     cls = 1
+                elif (cls == 3): # motorcycle 보정
+                    cls = 2
+                elif (cls == 5): # bus 보정
+                    cls = 0
                 elif (cls == 7): # truck 보정
-                    cls = 5
+                    cls = 4
                 pre[idx].insert(0, cls)
                 idx += 1
     return pre
 
-def roi_processing(res, x, y, w, h):
-    ref = [-1, x, y, w, h]
+def roi_processing(res, roi):
+    ref = [-1, roi[0], roi[1], roi[2], roi[3]]
     result = []
     for r in res:
         iou = getIOU_spec(ref, r)
@@ -59,9 +59,3 @@ def driver_processing(res):
         else:
             result.append(r)
     return result
-
-# path = 'C:/Users/PC/Desktop/field/dataset/best/images/'
-# model = YOLO('best.pt')
-# results = model(path + '20250123_144754_mp4-0051_jpg.rf.858502c8be34efc710cf41c26564838a.jpg')
-# for r in results:
-#      print(r.boxes)
