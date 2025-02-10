@@ -1,4 +1,4 @@
-import sys, os
+import sys, os, yaml
 import torch
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
@@ -128,12 +128,14 @@ class WorkerForYolo(QThread):
     sig = pyqtSignal(int)
     rep = pyqtSignal(list, list, int)
 
-    def __init__(self, model, path, thres):
+    def __init__(self, model, path, thres, custom, roi):
         super().__init__()
         self.model = model
         self.path = path
         self.flag = False
         self.thres = thres
+        self.custom = custom
+        self.roi = roi
 
     def thread_stop(self):
         self.flag = True
@@ -146,6 +148,10 @@ class WorkerForYolo(QThread):
         sum_recall = 0.0
         sum_mAP = 0.0
         data = os.listdir(self.path + "/images")
+        names = []
+        with open(self.path + '/data.yaml') as f:
+            film = yaml.load(f, Loader = yaml.FullLoader)
+            names = film['names']
         for i in range(len(data)):
             data[i] = data[i][:data[i].rfind(".")]
         total = len(data)
@@ -163,12 +169,11 @@ class WorkerForYolo(QThread):
             for t in tmp:
                 tt = t.split(" ")
                 ref.append([int(tt[0]), float(tt[1]), float(tt[2]), float(tt[3]), float(tt[4])])
-            pre = yolo.get_result_yolo(self.path + "/images/" + d + ".jpg", self.model, False)
+            pre = yolo.get_result_yolo(self.path + "/images/" + d + ".jpg", self.model, self.custom, names)
             #####
             pre = yolo.driver_processing(pre)
-            roi = [0.625, 0.8, 0.75, 0.4]
-            ref = yolo.roi_processing(ref, roi)
-            pre = yolo.roi_processing(pre, roi)
+            ref = yolo.roi_processing(ref, self.roi)
+            pre = yolo.roi_processing(pre, self.roi)
             #####
             ref_cls = [[], [], [], [], [], []]
             pre_cls = [[], [], [], [], [], []]
@@ -282,53 +287,70 @@ class MainWindow(QMainWindow):
     data_path = ""
     model_path = ""
     thres = 0.0
+    roi = [0.0, 0.0, 0.0, 0.0]
     sel = 0 # 0: ResNet & LSTM, 1: PaliGemma2, 2: YOLO v11x, 3: deepLabV3
 
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("Model Evaluator v1.1")
-        self.setGeometry(300, 300, 400, 160)
-        self.setFixedSize(400, 160)
+        self.setWindowTitle("Model Evaluator v1.2")
+        self.setGeometry(300, 300, 400, 180)
+        self.setFixedSize(400, 180)
 
         self.pBar = QProgressBar(self)
         self.pBar.move(20, 20)
         self.pBar.resize(370, 20)
         self.pBar.setValue(0)
 
-        self.label = QLabel("Threshold(%)", self)
-        self.label.move(80, 55)
-        self.text = QLineEdit("50", self)
-        self.text.setFixedSize(30, 20)
-        self.text.move(160, 60)
+        self.l_thres = QLabel("Threshold(%)", self)
+        self.l_thres.move(80, 75)
+        self.t_thres = QLineEdit("50", self)
+        self.t_thres.setFixedSize(30, 20)
+        self.t_thres.move(160, 80)
+        self.l_roi = QLabel("ROI [x, y, w, h]", self)
+        self.l_roi.move(50, 45)
+        self.t_x = QLineEdit("0.675", self)
+        self.t_x.setFixedSize(40, 20)
+        self.t_x.move(150, 50)
+        self.t_y = QLineEdit("0.8", self)
+        self.t_y.setFixedSize(40, 20)
+        self.t_y.move(200, 50)
+        self.t_w = QLineEdit("0.75", self)
+        self.t_w.setFixedSize(40, 20)
+        self.t_w.move(250, 50)
+        self.t_h = QLineEdit("0.4", self)
+        self.t_h.setFixedSize(40, 20)
+        self.t_h.move(300, 50)
 
         self.testBtn = QPushButton("테스트 시작", self)
-        self.testBtn.move(220, 55)
+        self.testBtn.move(220, 75)
         self.testBtn.clicked.connect(self.test)
 
         self.radio1 = QRadioButton("ResNet + LSTM", self)
-        self.radio1.move(20, 95)
+        self.radio1.move(20, 110)
         self.radio1.setFixedSize(150, 20)
-        self.radio2 = QRadioButton("PaliGemma", self)
-        self.radio2.move(160, 90)
-        self.radio3 = QRadioButton("YOLO v11x", self)
-        self.radio3.move(280, 90)
-        self.radio3.setChecked(True)
-        # self.radio4 = QRadioButton("segmentation", self)
-        # self.radio4.move(280, 90)
+        self.radio2 = QRadioButton("YOLO v11x pt", self)
+        self.radio2.move(160, 110)
+        self.radio2.setFixedSize(150, 20)
+        self.radio2.setChecked(True)
+        self.radio3 = QRadioButton("YOLO v11x cus", self)
+        self.radio3.move(280, 110)
+        self.radio3.setFixedSize(150, 20)
 
         self.excelBtn = QPushButton("결과 출력 위치", self)
-        self.excelBtn.move(10, 120)
+        self.excelBtn.move(10, 140)
         self.excelBtn.clicked.connect(self.excel)
         self.folderBtn = QPushButton("데이터 폴더", self)
-        self.folderBtn.move(150, 120)
+        self.folderBtn.move(150, 140)
         self.folderBtn.clicked.connect(self.data)
         self.selBtn = QPushButton("모델 위치", self)
-        self.selBtn.move(290, 120)
+        self.selBtn.move(290, 140)
         self.selBtn.clicked.connect(self.model)
 
     def test(self):
-        self.__class__.thres = int(self.text.text()) / 100
+        self.__class__.thres = int(self.t_thres.text()) / 100
+        self.__class__.roi = [float(self.t_x.text()), float(self.t_y.text()),
+                              float(self.t_w.text()), float(self.t_h.text())]
         if (self.__class__.data_path == "" or self.__class__.model_path == "" or self.__class__.excel_path == ""):
             return
         if (self.testBtn.text() == "테스트 중지"):
@@ -342,8 +364,6 @@ class MainWindow(QMainWindow):
                 self.__class__.sel = 1
             elif (self.radio3.isChecked()):
                 self.__class__.sel = 2
-            # elif (self.radio4.isChecked()):
-            #     self.__class__.sel = 3
 
             self.testBtn.setText("테스트 중지")
 
@@ -360,35 +380,35 @@ class MainWindow(QMainWindow):
                 self.worker.rep.connect(self.report)
                 del self.model
                 torch.cuda.empty_cache()
+            # elif (self.sel == 1):
+            #     f = open(self.__class__.data_path + "/captions.txt", 'r')
+            #     f.readline()
+            #     lines = f.readlines()
+            #     f.close()
+            #     test = lines[:100]
+            #     self.model = PaliGemmaForConditionalGeneration.from_pretrained(
+            #         self.__class__.model_path,
+            #         torch_dtype=torch.bfloat16,
+            #         local_files_only=True
+            #     ).to(DEVICE)
+            #     self.processor = PaliGemmaProcessor.from_pretrained(self.__class__.model_path, local_files_only=True)
+            #     self.worker = WorkerForPali(test, self.model, self.processor, self.__class__.data_path)
+            #     self.worker.start()
+            #     self.worker.sig.connect(self.process)
+            #     self.worker.rep.connect(self.report)
+            #     del self.model
+            #     torch.cuda.empty_cache()
             elif (self.sel == 1):
-                f = open(self.__class__.data_path + "/captions.txt", 'r')
-                f.readline()
-                lines = f.readlines()
-                f.close()
-                test = lines[:100]
-                self.model = PaliGemmaForConditionalGeneration.from_pretrained(
-                    self.__class__.model_path,
-                    torch_dtype=torch.bfloat16,
-                    local_files_only=True
-                ).to(DEVICE)
-                self.processor = PaliGemmaProcessor.from_pretrained(self.__class__.model_path, local_files_only=True)
-                self.worker = WorkerForPali(test, self.model, self.processor, self.__class__.data_path)
+                self.model = YOLO('yolo11x.pt')
+                self.worker = WorkerForYolo(self.model, self.__class__.data_path, self.__class__.thres, False, self.__class__.roi)
                 self.worker.start()
                 self.worker.sig.connect(self.process)
                 self.worker.rep.connect(self.report)
                 del self.model
                 torch.cuda.empty_cache()
             elif (self.sel == 2):
-                self.model = YOLO('yolo11x.pt')
-                self.worker = WorkerForYolo(self.model, self.__class__.data_path, self.__class__.thres)
-                self.worker.start()
-                self.worker.sig.connect(self.process)
-                self.worker.rep.connect(self.report)
-                del self.model
-                torch.cuda.empty_cache()
-            elif (self.sel == 3):
-                self.model = ''
-                self.worker = WorkerForSeg(self.model, self.__class__.data_path, self.__class__.thres)
+                self.model = YOLO('best.pt')
+                self.worker = WorkerForYolo(self.model, self.__class__.data_path, self.__class__.thres, True, self.__class__.roi)
                 self.worker.start()
                 self.worker.sig.connect(self.process)
                 self.worker.rep.connect(self.report)

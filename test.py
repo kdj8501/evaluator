@@ -192,7 +192,9 @@ def yolo_grid_test():
     print('[candidate objs count / total objs count]')
     print([count, total])
 if __name__ == '__main__':
-    yolo_grid_test()
+    # yolo_grid_test()
+    model = YOLO('yolo11x.pt')
+    print(model.names)
 
 #
 # prompt = 'There are 16 images of vehicles in the 4x4 area, 
