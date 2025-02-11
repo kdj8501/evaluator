@@ -1,4 +1,4 @@
-import os, time, threading, queue, cv2
+import os, time, threading, queue, cv2, torch, queue
 from collections import defaultdict
 from chatgpt import get_result_chatgpt
 from gemini import get_result_gemini
@@ -6,6 +6,7 @@ from ultralytics import YOLO
 from yolo import driver_processing, roi_processing
 from baseiou import getIOU
 import numpy as np
+from threading import Lock
 
 q = queue.Queue()
 flag = True
@@ -214,7 +215,7 @@ def yolo_grid_test():
     print('[candidate objs count / total objs count]')
     print([count, total])
 
-def tracking():
+def tracking_1():
     model = YOLO('best.pt')
     path = 'C:/Users/koo/Desktop/수집 데이터/20250206_142913.mp4'
     cap = cv2.VideoCapture(path)
@@ -222,11 +223,25 @@ def tracking():
     count = [0, 0, 0, 0, 0]
     start_roi = [{}, 960, 250, 840, 50]
     end_roi = [100, 700, 1700, 50]
+    fps = [0, 0, 0]
+    def fps_thread(f):
+        while (cap.isOpened()):
+            f[1] = f[2]
+            time.sleep(1)
+            fps[0] = fps[2] - fps[1]
+    f_thread = threading.Thread(target = fps_thread, args = [fps])
+    f_thread.start()
+    width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+    height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+    out = cv2.VideoWriter('runs/run.avi', cv2.VideoWriter_fourcc(*'DIVX'), 30.0, (int(width), int(height)))
     while cap.isOpened():
         res, frame = cap.read()
+        fps[2] += 1
         if res == False:
             break
         results = model.track(frame, persist = True)
+        if (results[0].boxes.id == None):
+            break
         boxes = results[0].boxes.xywh.cpu()
         track_ids = results[0].boxes.id.int().cpu().tolist()
         clss = results[0].boxes.cls.int().cpu().tolist()
@@ -258,21 +273,289 @@ def tracking():
                         elif (class_id == 3):
                             count[3] += 1
                         start_roi[0].pop(track_id, None)
-        cv2.putText(annotated_frame, 'car:' + str(count[0]), (50, 70), cv2.FONT_HERSHEY_SIMPLEX, 3, (212, 255, 83), 3, cv2.LINE_AA)
-        cv2.putText(annotated_frame, 'truck:' + str(count[1]), (50, 140), cv2.FONT_HERSHEY_SIMPLEX, 3, (212, 255, 83), 3, cv2.LINE_AA)
-        cv2.putText(annotated_frame, 'bus:' + str(count[2]), (50, 210), cv2.FONT_HERSHEY_SIMPLEX, 3, (212, 255, 83), 3, cv2.LINE_AA)
-        cv2.putText(annotated_frame, 'motorcycle:' + str(count[3]), (50, 280), cv2.FONT_HERSHEY_SIMPLEX, 3, (212, 255, 83), 3, cv2.LINE_AA)
-        cv2.putText(annotated_frame, 'wrong:' + str(count[4]), (50, 350), cv2.FONT_HERSHEY_SIMPLEX, 3, (212, 255, 83), 3, cv2.LINE_AA)
+        cv2.putText(annotated_frame, 'FPS:' + str(fps[0]), (50, 70), cv2.FONT_HERSHEY_SIMPLEX, 3, (212, 255, 83), 3, cv2.LINE_AA)
+        cv2.putText(annotated_frame, 'car:' + str(count[0]), (50, 140), cv2.FONT_HERSHEY_SIMPLEX, 3, (212, 255, 83), 3, cv2.LINE_AA)
+        cv2.putText(annotated_frame, 'truck:' + str(count[1]), (50, 210), cv2.FONT_HERSHEY_SIMPLEX, 3, (212, 255, 83), 3, cv2.LINE_AA)
+        cv2.putText(annotated_frame, 'bus:' + str(count[2]), (50, 280), cv2.FONT_HERSHEY_SIMPLEX, 3, (212, 255, 83), 3, cv2.LINE_AA)
+        cv2.putText(annotated_frame, 'motorcycle:' + str(count[3]), (50, 350), cv2.FONT_HERSHEY_SIMPLEX, 3, (212, 255, 83), 3, cv2.LINE_AA)
+        cv2.putText(annotated_frame, 'wrong:' + str(count[4]), (50, 420), cv2.FONT_HERSHEY_SIMPLEX, 3, (212, 255, 83), 3, cv2.LINE_AA)
         cv2.rectangle(annotated_frame, (start_roi[1], start_roi[2]), (start_roi[1] + start_roi[3], start_roi[2] + start_roi[4]), (0, 255, 0), 2)
         cv2.rectangle(annotated_frame, (end_roi[0], end_roi[1]), (end_roi[0] + end_roi[2], end_roi[1] + end_roi[3]), (0, 255, 0), 2)
         cv2.imshow("Tracking", annotated_frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
+        out.write(annotated_frame)
     cap.release()
+    out.release()
+    cv2.destroyAllWindows()
+
+def tracking_2():
+    model = YOLO('best.pt')
+    path = 'C:/Users/koo/Desktop/수집 데이터/20250206_143447.mp4'
+    cap = cv2.VideoCapture(path)
+    track_history = defaultdict(lambda: [])
+    count = [0, 0, 0, 0, 0]
+    start_roi = [{}, 1260, 250, 330, 50]
+    end_roi = [220, 700, 1260, 50]
+    fps = [0, 0, 0]
+    def fps_thread(f):
+        while (cap.isOpened()):
+            f[1] = f[2]
+            time.sleep(1)
+            fps[0] = fps[2] - fps[1]
+    f_thread = threading.Thread(target = fps_thread, args = [fps])
+    f_thread.start()
+    width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+    height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+    out = cv2.VideoWriter('runs/run2.avi', cv2.VideoWriter_fourcc(*'DIVX'), 30.0, (int(width), int(height)))
+    while cap.isOpened():
+        res, frame = cap.read()
+        fps[2] += 1
+        if res == False:
+            break
+        results = model.track(frame, persist = True)
+        if (results[0].boxes.id == None):
+            break
+        boxes = results[0].boxes.xywh.cpu()
+        track_ids = results[0].boxes.id.int().cpu().tolist()
+        clss = results[0].boxes.cls.int().cpu().tolist()
+        annotated_frame = results[0].plot()
+
+        for box, track_id, class_id in zip(boxes, track_ids, clss):
+            x, y, w, h = box
+            track = track_history[track_id]
+            track.append((float(x), float(y + h / 2)))
+            if len(track) > 50:
+                track.pop(0)
+            points = np.hstack(track).astype(np.int32).reshape((-1, 1, 2))
+            cv2.polylines(annotated_frame, [points], isClosed = False, color = (10, 10, 230), thickness = 3)
+            if ((float(x) > start_roi[1] and float(x) < start_roi[1] + start_roi[3]) and
+                (float(y + h / 2) > start_roi[2] and float(y + h / 2) < start_roi[2] + start_roi[4])):
+                    if not (track_id in start_roi[0]):
+                        start_roi[0][track_id] = class_id
+            if ((float(x) > end_roi[0] and float(x) < end_roi[0] + end_roi[2]) and
+                (float(y + h / 2) > end_roi[1] and float(y + h / 2) < end_roi[1] + end_roi[3])):
+                    if (track_id in start_roi[0]):
+                        if (start_roi[0][track_id] != class_id):
+                            count[4] += 1
+                        elif (class_id == 2):
+                            count[0] += 1
+                        elif (class_id == 5):
+                            count[1] += 1
+                        elif (class_id == 1):
+                            count[2] += 1
+                        elif (class_id == 3):
+                            count[3] += 1
+                        start_roi[0].pop(track_id, None)
+        cv2.putText(annotated_frame, 'FPS:' + str(fps[0]), (50, 70), cv2.FONT_HERSHEY_SIMPLEX, 3, (212, 255, 83), 3, cv2.LINE_AA)
+        cv2.putText(annotated_frame, 'car:' + str(count[0]), (50, 140), cv2.FONT_HERSHEY_SIMPLEX, 3, (212, 255, 83), 3, cv2.LINE_AA)
+        cv2.putText(annotated_frame, 'truck:' + str(count[1]), (50, 210), cv2.FONT_HERSHEY_SIMPLEX, 3, (212, 255, 83), 3, cv2.LINE_AA)
+        cv2.putText(annotated_frame, 'bus:' + str(count[2]), (50, 280), cv2.FONT_HERSHEY_SIMPLEX, 3, (212, 255, 83), 3, cv2.LINE_AA)
+        cv2.putText(annotated_frame, 'motorcycle:' + str(count[3]), (50, 350), cv2.FONT_HERSHEY_SIMPLEX, 3, (212, 255, 83), 3, cv2.LINE_AA)
+        cv2.putText(annotated_frame, 'wrong:' + str(count[4]), (50, 420), cv2.FONT_HERSHEY_SIMPLEX, 3, (212, 255, 83), 3, cv2.LINE_AA)
+        cv2.rectangle(annotated_frame, (start_roi[1], start_roi[2]), (start_roi[1] + start_roi[3], start_roi[2] + start_roi[4]), (0, 255, 0), 2)
+        cv2.rectangle(annotated_frame, (end_roi[0], end_roi[1]), (end_roi[0] + end_roi[2], end_roi[1] + end_roi[3]), (0, 255, 0), 2)
+        cv2.imshow("Tracking", annotated_frame)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+        out.write(annotated_frame)
+    cap.release()
+    out.release()
+    cv2.destroyAllWindows()
+
+def tracking_3():
+    model = YOLO('yolo11x.pt')
+    names = model.names
+    path = 'C:/Users/koo/Desktop/수집 데이터/20250123_145208.mp4'
+    cap = cv2.VideoCapture(path)
+    track_history = defaultdict(lambda: [])
+    count = {
+        'person': 0,
+        'car': 0,
+        'truck': 0,
+        'bus': 0,
+        'motorcycle': 0,
+        'bicycle': 0,
+        'wrong': 0
+    }
+    veh = {}
+    comp = []
+    start_roi = [1260, 250, 600, 50]
+    middle_roi = [600, 220, 50, 280]
+    end_roi = [300, 700, 1560, 50]
+    fps = [0, 0, 0]
+    def fps_thread(f):
+        while (cap.isOpened()):
+            f[1] = f[2]
+            time.sleep(1)
+            fps[0] = fps[2] - fps[1]
+    f_thread = threading.Thread(target = fps_thread, args = [fps])
+    f_thread.start()
+    width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+    height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+    out = cv2.VideoWriter('runs/run4.avi', cv2.VideoWriter_fourcc(*'DIVX'), 30.0, (int(width), int(height)))
+    while cap.isOpened():
+        res, frame = cap.read()
+        fps[2] += 1
+        if res == False:
+            break
+        results = model.track(frame, persist = True, classes = [0, 1, 2, 3, 5, 7])
+        if (results[0].boxes.id == None):
+            break
+        boxes = results[0].boxes.xywh.cpu()
+        track_ids = results[0].boxes.id.int().cpu().tolist()
+        clss = results[0].boxes.cls.int().cpu().tolist()
+        annotated_frame = results[0].plot()
+
+        for box, track_id, class_id in zip(boxes, track_ids, clss):
+            x, y, w, h = box
+            track = track_history[track_id]
+            track.append((float(x), float(y + h / 2)))
+            if len(track) > 50:
+                track.pop(0)
+            points = np.hstack(track).astype(np.int32).reshape((-1, 1, 2))
+            cv2.polylines(annotated_frame, [points], isClosed = False, color = (10, 10, 230), thickness = 3)
+            if ((float(x) > start_roi[0] and float(x) < start_roi[0] + start_roi[2]) and
+                (float(y + h / 2) > start_roi[1] and float(y + h / 2) < start_roi[1] + start_roi[3])):
+                    if not (track_id in veh):
+                        veh[track_id] = class_id
+            if ((float(x) > middle_roi[0] and float(x) < middle_roi[0] + middle_roi[2]) and
+                (float(y + h / 2) > middle_roi[1] and float(y + h / 2) < middle_roi[1] + middle_roi[3])):
+                    if (track_id in veh):
+                        if (veh[track_id] != class_id):
+                            count['wrong'] += 1
+                        else:
+                            count[names[class_id]] += 1
+                        veh.pop(track_id, None)
+                        comp.append(track_id)
+                    else:
+                        if not(track_id in comp):
+                            veh[track_id] = class_id
+            if ((float(x) > end_roi[0] and float(x) < end_roi[0] + end_roi[2]) and
+                (float(y + h / 2) > end_roi[1] and float(y + h / 2) < end_roi[1] + end_roi[3])):
+                    if (track_id in veh):
+                        if (veh[track_id] != class_id):
+                            count['wrong'] += 1
+                        else:
+                            count[names[class_id]] += 1
+                        veh.pop(track_id, None)
+                        comp.append(track_id)
+                    else:
+                        if not(track_id in comp):
+                            veh[track_id] = class_id
+        cv2.putText(annotated_frame, 'FPS:' + str(fps[0]), (50, 70), cv2.FONT_HERSHEY_SIMPLEX, 3, (212, 255, 83), 3, cv2.LINE_AA)
+        idx = 2
+        for k in count.keys():
+            cv2.putText(annotated_frame, k + ":" + str(count[k]), (50, 70 * idx), cv2.FONT_HERSHEY_SIMPLEX, 3, (212, 255, 83), 3, cv2.LINE_AA)
+            idx += 1
+        cv2.rectangle(annotated_frame, (start_roi[0], start_roi[1]), (start_roi[0] + start_roi[2], start_roi[1] + start_roi[3]), (0, 255, 0), 2)
+        cv2.rectangle(annotated_frame, (middle_roi[0], middle_roi[1]), (middle_roi[0] + middle_roi[2], middle_roi[1] + middle_roi[3]), (0, 255, 0), 2)
+        cv2.rectangle(annotated_frame, (end_roi[0], end_roi[1]), (end_roi[0] + end_roi[2], end_roi[1] + end_roi[3]), (0, 255, 0), 2)
+        cv2.imshow("Tracking", annotated_frame)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+        out.write(annotated_frame)
+    cap.release()
+    out.release()
+    cv2.destroyAllWindows()
+        
+def tracking_4():
+    MODEL = 'yolo11x.pt'
+    model = YOLO(MODEL)
+    fps = [0, 0, 0, True]
+    q = queue.Queue()
+    def fps_thread(f):
+        while f[3]:
+            f[1] = f[2]
+            time.sleep(1)
+            f[0] = f[2] - f[1]
+    f_thread = threading.Thread(target = fps_thread, args = [fps])
+    f_thread.start()
+    def rtsp_thread(q, f):
+        path = 'rtsp://admin:0p9o8i7u@@@1.233.65.68:7778/0/profile2/media.smp'
+        # path = 'rtsp://admin:saloris4321@192.168.0.60:554/Streaming/Channels/101'
+        cap = cv2.VideoCapture(path)
+        while f[3]:
+            _, frame = cap.read()
+            if (q.qsize() < 100):
+                q.put(frame)
+        cap.release()
+    r_thread = threading.Thread(target = rtsp_thread, args = [q, fps])
+    r_thread.start()
+    def show_thread(q, f):
+        names = model.names
+        track_history = defaultdict(lambda: [])
+        count = {
+            'person': 0,
+            'car': 0,
+            'truck': 0,
+            'bus': 0,
+            'motorcycle': 0,
+            'bicycle': 0,
+            'wrong': 0
+        }
+        veh = {}
+        comp = []
+        start_roi = [0, 1, 2, 3]
+        end_roi = [800, 5, 50, 1025]
+        # start_roi = [500, 700, 1410, 50]
+        # end_roi = [10, 900, 1900, 50]
+        while f[3]:
+            if (q.qsize() > 0):
+                frame = q.get()
+                if MODEL == 'yolo11x.pt':
+                    results = model.track(frame, persist = True, classes = [0, 1, 2, 3, 5, 7])
+                else:
+                    results = model.track(frame, persist = True)
+                fps[2] += 1
+                boxes = results[0].boxes.xywh.cpu()
+                track_ids = torch.Tensor().int().cpu().tolist()
+                clss = torch.Tensor().int().cpu().tolist()
+                if not (results[0].boxes.id == None):
+                    track_ids = results[0].boxes.id.int().cpu().tolist()
+                    clss = results[0].boxes.cls.int().cpu().tolist()
+                annotated_frame = results[0].plot()
+                for box, track_id, class_id in zip(boxes, track_ids, clss):
+                    x, y, w, h = box
+                    point = [float(x - w / 2), float(y - h / 2)]
+                    track = track_history[track_id]
+                    track.append((point[0], point[1]))
+                    if len(track) > 50:
+                        track.pop(0)
+                    points = np.hstack(track).astype(np.int32).reshape((-1, 1, 2))
+                    cv2.polylines(annotated_frame, [points], isClosed = False, color = (10, 10, 230), thickness = 3)
+                    if ((point[0] > start_roi[0] and point[0] < start_roi[0] + start_roi[2]) and
+                        (point[1] > start_roi[1] and point[1] < start_roi[1] + start_roi[3])):
+                            if not (track_id in veh):
+                                veh[track_id] = class_id
+                    if ((point[0] > end_roi[0] and point[0] < end_roi[0] + end_roi[2]) and
+                        (point[1] > end_roi[1] and point[1] < end_roi[1] + end_roi[3])):
+                            if (track_id in veh):
+                                if (veh[track_id] != class_id):
+                                    count['wrong'] += 1
+                                else:
+                                    count[names[class_id]] += 1
+                                veh.pop(track_id, None)
+                                comp.append(track_id)
+                            else:
+                                if not(track_id in comp):
+                                    veh[track_id] = class_id
+                cv2.putText(annotated_frame, 'FPS:' + str(f[0]), (50, 70), cv2.FONT_HERSHEY_SIMPLEX, 3, (212, 255, 83), 3, cv2.LINE_AA)
+                idx = 2
+                for k in count.keys():
+                    cv2.putText(annotated_frame, k + ":" + str(count[k]), (50, 70 * idx), cv2.FONT_HERSHEY_SIMPLEX, 3, (212, 255, 83), 3, cv2.LINE_AA)
+                    idx += 1
+                cv2.rectangle(annotated_frame, (start_roi[0], start_roi[1]), (start_roi[0] + start_roi[2], start_roi[1] + start_roi[3]), (0, 255, 0), 2)
+                cv2.rectangle(annotated_frame, (end_roi[0], end_roi[1]), (end_roi[0] + end_roi[2], end_roi[1] + end_roi[3]), (0, 255, 0), 2)
+                cv2.imshow("Tracking", annotated_frame)
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    f[3] = False
+    s_thread = threading.Thread(target = show_thread, args = [q, fps])
+    s_thread.start()
     cv2.destroyAllWindows()
 
 if __name__ == '__main__':
-    tracking()
+    tracking_4()
 
 #
 # prompt = ['There are 16 images of vehicles in the 4x4 area, 
