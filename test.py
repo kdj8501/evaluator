@@ -462,7 +462,7 @@ def tracking_3():
 def tracking_4():
     MODEL = 'yolo11x.pt'
     model = YOLO(MODEL)
-    fps = [0, 0, 0, True]
+    fps = [0, 0, 0, True, 0, 0]
     q = queue.Queue()
     def fps_thread(f):
         while f[3]:
@@ -471,10 +471,14 @@ def tracking_4():
             f[0] = f[2] - f[1]
     f_thread = threading.Thread(target = fps_thread, args = [fps])
     f_thread.start()
+    def is_moving(track):
+        return len(track) > 4 and (track[len(track) - 1][0] - track[len(track) - 5][0]) ** 2 + (track[len(track) - 1][1] - track[len(track) - 5][1]) ** 2 > 16
     def rtsp_thread(q, f):
         path = 'rtsp://admin:0p9o8i7u@@@1.233.65.68:7778/0/profile2/media.smp'
         # path = 'rtsp://admin:saloris4321@192.168.0.60:554/Streaming/Channels/101'
         cap = cv2.VideoCapture(path)
+        f[4] = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        f[5] = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         while f[3]:
             _, frame = cap.read()
             if (q.qsize() < 100):
@@ -497,17 +501,20 @@ def tracking_4():
         veh = {}
         comp = []
         start_roi = [0, 1, 2, 3]
-        end_roi = [800, 5, 50, 1025]
+        middle_roi = [10, 300, 1910, 50]
+        end_roi = [500, 5, 50, 1005]
         # start_roi = [500, 700, 1410, 50]
         # end_roi = [10, 900, 1900, 50]
+        out = cv2.VideoWriter('runs/run.avi', cv2.VideoWriter_fourcc(*'DIVX'), 30.0, (f[4], f[5]))
         while f[3]:
             if (q.qsize() > 0):
                 frame = q.get()
-                if MODEL == 'yolo11x.pt':
+                if MODEL == 'yolo11x.pt' or MODEL == 'yolo11n.pt':
                     results = model.track(frame, persist = True, classes = [0, 1, 2, 3, 5, 7])
                 else:
                     results = model.track(frame, persist = True)
                 fps[2] += 1
+                flag = False
                 boxes = results[0].boxes.xywh.cpu()
                 track_ids = torch.Tensor().int().cpu().tolist()
                 clss = torch.Tensor().int().cpu().tolist()
@@ -517,7 +524,7 @@ def tracking_4():
                 annotated_frame = results[0].plot()
                 for box, track_id, class_id in zip(boxes, track_ids, clss):
                     x, y, w, h = box
-                    point = [float(x - w / 2), float(y - h / 2)]
+                    point = [float(x), float(y)]
                     track = track_history[track_id]
                     track.append((point[0], point[1]))
                     if len(track) > 50:
@@ -528,28 +535,53 @@ def tracking_4():
                         (point[1] > start_roi[1] and point[1] < start_roi[1] + start_roi[3])):
                             if not (track_id in veh):
                                 veh[track_id] = class_id
-                    if ((point[0] > end_roi[0] and point[0] < end_roi[0] + end_roi[2]) and
-                        (point[1] > end_roi[1] and point[1] < end_roi[1] + end_roi[3])):
+                    if ((point[0] > middle_roi[0] and point[0] < middle_roi[0] + middle_roi[2]) and
+                        (point[1] > middle_roi[1] and point[1] < middle_roi[1] + middle_roi[3])):
                             if (track_id in veh):
                                 if (veh[track_id] != class_id):
-                                    count['wrong'] += 1
+                                    if (is_moving(track)):
+                                        count['wrong'] += 1
                                 else:
-                                    count[names[class_id]] += 1
+                                    if (is_moving(track)):
+                                        count[names[class_id]] += 1
                                 veh.pop(track_id, None)
                                 comp.append(track_id)
                             else:
                                 if not(track_id in comp):
                                     veh[track_id] = class_id
+                    if ((point[0] > end_roi[0] and point[0] < end_roi[0] + end_roi[2]) and
+                        (point[1] > end_roi[1] and point[1] < end_roi[1] + end_roi[3])):
+                            if (track_id in veh):
+                                if (veh[track_id] != class_id):
+                                    if (is_moving(track)):
+                                        count['wrong'] += 1
+                                else:
+                                    if (is_moving(track)):
+                                        count[names[class_id]] += 1
+                                veh.pop(track_id, None)
+                                comp.append(track_id)
+                            else:
+                                if not(track_id in comp):
+                                    veh[track_id] = class_id
+                    if (is_moving(track)):
+                        flag = True
+                cv2.putText(annotated_frame, str(flag), (1400, 70), cv2.FONT_HERSHEY_SIMPLEX, 3, (212, 255, 83), 3, cv2.LINE_AA)
                 cv2.putText(annotated_frame, 'FPS:' + str(f[0]), (50, 70), cv2.FONT_HERSHEY_SIMPLEX, 3, (212, 255, 83), 3, cv2.LINE_AA)
                 idx = 2
                 for k in count.keys():
+                    if k == 'wrong' or k == 'bus':
+                        continue
                     cv2.putText(annotated_frame, k + ":" + str(count[k]), (50, 70 * idx), cv2.FONT_HERSHEY_SIMPLEX, 3, (212, 255, 83), 3, cv2.LINE_AA)
                     idx += 1
                 cv2.rectangle(annotated_frame, (start_roi[0], start_roi[1]), (start_roi[0] + start_roi[2], start_roi[1] + start_roi[3]), (0, 255, 0), 2)
+                cv2.rectangle(annotated_frame, (middle_roi[0], middle_roi[1]), (middle_roi[0] + middle_roi[2], middle_roi[1] + middle_roi[3]), (0, 255, 0), 2)
                 cv2.rectangle(annotated_frame, (end_roi[0], end_roi[1]), (end_roi[0] + end_roi[2], end_roi[1] + end_roi[3]), (0, 255, 0), 2)
                 cv2.imshow("Tracking", annotated_frame)
+                if (flag):
+                    out.write(annotated_frame)
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     f[3] = False
+        out.release()
     s_thread = threading.Thread(target = show_thread, args = [q, fps])
     s_thread.start()
     cv2.destroyAllWindows()
