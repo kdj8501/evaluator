@@ -128,13 +128,12 @@ class WorkerForYolo(QThread):
     sig = pyqtSignal(int)
     rep = pyqtSignal(list, list, int)
 
-    def __init__(self, model, path, thres, custom, roi):
+    def __init__(self, model, path, thres, roi):
         super().__init__()
         self.model = model
         self.path = path
         self.flag = False
         self.thres = thres
-        self.custom = custom
         self.roi = roi
 
     def thread_stop(self):
@@ -169,7 +168,7 @@ class WorkerForYolo(QThread):
             for t in tmp:
                 tt = t.split(" ")
                 ref.append([int(tt[0]), float(tt[1]), float(tt[2]), float(tt[3]), float(tt[4])])
-            pre = yolo.get_result_yolo(self.path + "/images/" + d + ".jpg", self.model, self.custom, names)
+            pre = yolo.get_result_yolo(self.path + "/images/" + d + ".jpg", self.model, names)
             #####
             pre = yolo.driver_processing(pre)
             ref = yolo.roi_processing(ref, self.roi)
@@ -224,12 +223,11 @@ class WorkerForSeg(QThread):
     sig = pyqtSignal(int)
     rep = pyqtSignal(list, list, int)
 
-    def __init__(self, model, path, thres):
+    def __init__(self, model, path):
         super().__init__()
         self.model = model
         self.path = path
         self.flag = False
-        self.thres = thres
 
     def thread_stop(self):
         self.flag = True
@@ -249,9 +247,9 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("Model Evaluator v1.3")
-        self.setGeometry(300, 300, 400, 200)
-        self.setFixedSize(400, 200)
+        self.setWindowTitle("Model Evaluator v2.0")
+        self.setGeometry(300, 300, 400, 210)
+        self.setFixedSize(400, 210)
 
         self.pBar = QProgressBar(self)
         self.pBar.move(20, 20)
@@ -265,16 +263,16 @@ class MainWindow(QMainWindow):
         self.t_thres.move(160, 80)
         self.l_roi = QLabel("ROI [x, y, w, h]", self)
         self.l_roi.move(50, 45)
-        self.t_x = QLineEdit("0.675", self)
+        self.t_x = QLineEdit("0.5", self)
         self.t_x.setFixedSize(40, 20)
         self.t_x.move(150, 50)
-        self.t_y = QLineEdit("0.8", self)
+        self.t_y = QLineEdit("0.5", self)
         self.t_y.setFixedSize(40, 20)
         self.t_y.move(200, 50)
-        self.t_w = QLineEdit("0.75", self)
+        self.t_w = QLineEdit("1", self)
         self.t_w.setFixedSize(40, 20)
         self.t_w.move(250, 50)
-        self.t_h = QLineEdit("0.4", self)
+        self.t_h = QLineEdit("1", self)
         self.t_h.setFixedSize(40, 20)
         self.t_h.move(300, 50)
 
@@ -282,32 +280,36 @@ class MainWindow(QMainWindow):
         self.testBtn.move(220, 75)
         self.testBtn.clicked.connect(self.test)
 
-        self.radio1 = QRadioButton("ResNet+LSTM", self)
-        self.radio1.move(20, 110)
+
+        self.l_captioning = QLabel('Image Captioning', self)
+        self.l_captioning.move(20, 100)
+        self.radio1 = QRadioButton("ResNet + LSTM", self)
+        self.radio1.move(160, 105)
         self.radio1.setFixedSize(150, 20)
         self.radio2 = QRadioButton("PaliGemma", self)
-        self.radio2.move(160, 110)
+        self.radio2.move(280, 105)
         self.radio2.setFixedSize(150, 20)
+        self.l_segmentation = QLabel('Segmentation', self)
+        self.l_segmentation.move(20, 120)
         self.radio3 = QRadioButton("Segmentation", self)
-        self.radio3.move(280, 110)
+        self.radio3.move(280, 125)
         self.radio3.setFixedSize(150, 20)
         self.radio3.setEnabled(False)
-        self.radio4 = QRadioButton("YOLO v11x pt", self)
-        self.radio4.move(20, 130)
+        self.l_segmentation = QLabel('Object Detecting', self)
+        self.l_segmentation.move(20, 140)
+        self.radio4 = QRadioButton("YOLO", self)
+        self.radio4.move(160, 145)
         self.radio4.setFixedSize(150, 20)
         self.radio4.setChecked(True)
-        self.radio5 = QRadioButton("YOLO v11x cus", self)
-        self.radio5.move(160, 130)
-        self.radio5.setFixedSize(150, 20)
 
         self.excelBtn = QPushButton("결과 출력 위치", self)
-        self.excelBtn.move(10, 160)
+        self.excelBtn.move(10, 170)
         self.excelBtn.clicked.connect(self.excel)
         self.folderBtn = QPushButton("데이터 폴더", self)
-        self.folderBtn.move(150, 160)
+        self.folderBtn.move(150, 170)
         self.folderBtn.clicked.connect(self.data)
         self.selBtn = QPushButton("모델 위치", self)
-        self.selBtn.move(290, 160)
+        self.selBtn.move(290, 170)
         self.selBtn.clicked.connect(self.model)
 
     def test(self):
@@ -327,19 +329,17 @@ class MainWindow(QMainWindow):
                 self.__class__.sel = 1
             elif (self.radio3.isChecked()):
                 self.__class__.sel = 2
-            elif (self.radio3.isChecked()):
+            elif (self.radio4.isChecked()):
                 self.__class__.sel = 3
-            elif (self.radio3.isChecked()):
-                self.__class__.sel = 4
 
             self.testBtn.setText("테스트 중지")
 
-            if (self.sel == 0):
+            if (self.sel == 0): # ResNet + LSTM
                 f = open(self.__class__.data_path + "/captions.txt", 'r')
                 f.readline()
                 lines = f.readlines()
                 f.close()
-                test = lines[:100]
+                test = lines[:-1]
                 self.model = resnet.load_trained_model(self.__class__.model_path + "/final_model.pth", self.__class__.model_path + "/vocab.pkl")
                 self.worker = WorkerForResnet(test, self.model, self.__class__.data_path, self.__class__.model_path + "/vocab.pkl")
                 self.worker.start()
@@ -347,12 +347,12 @@ class MainWindow(QMainWindow):
                 self.worker.rep.connect(self.report)
                 del self.model
                 torch.cuda.empty_cache()
-            elif (self.sel == 1):
+            elif (self.sel == 1): # PaliGemma2
                 f = open(self.__class__.data_path + "/captions.txt", 'r')
                 f.readline()
                 lines = f.readlines()
                 f.close()
-                test = lines[:100]
+                test = lines[:-1]
                 self.model = PaliGemmaForConditionalGeneration.from_pretrained(
                     self.__class__.model_path,
                     torch_dtype=torch.bfloat16,
@@ -365,25 +365,17 @@ class MainWindow(QMainWindow):
                 self.worker.rep.connect(self.report)
                 del self.model
                 torch.cuda.empty_cache()
-            elif (self.sel == 2):
+            elif (self.sel == 2): # Segmentation
                 self.model = ''
-                self.worker = WorkerForPali(self.model, self.__class__.data_path, self.__class__.thres, False, self.__class__.roi)
+                self.worker = WorkerForSeg(self.model, self.__class__.data_path)
                 self.worker.start()
                 self.worker.sig.connect(self.process)
                 self.worker.rep.connect(self.report)
                 del self.model
                 torch.cuda.empty_cache()
-            elif (self.sel == 3):
-                self.model = YOLO('yolo11x.pt')
-                self.worker = WorkerForYolo(self.model, self.__class__.data_path, self.__class__.thres, False, self.__class__.roi)
-                self.worker.start()
-                self.worker.sig.connect(self.process)
-                self.worker.rep.connect(self.report)
-                del self.model
-                torch.cuda.empty_cache()
-            elif (self.sel == 4):
-                self.model = YOLO('best.pt')
-                self.worker = WorkerForYolo(self.model, self.__class__.data_path, self.__class__.thres, True, self.__class__.roi)
+            elif (self.sel == 3): # YOLO
+                self.model = YOLO(self.__class__.model_path)
+                self.worker = WorkerForYolo(self.model, self.__class__.data_path, self.__class__.thres, self.__class__.roi)
                 self.worker.start()
                 self.worker.sig.connect(self.process)
                 self.worker.rep.connect(self.report)
@@ -391,7 +383,7 @@ class MainWindow(QMainWindow):
                 torch.cuda.empty_cache()
 
     def report(self, rep, avr, div):
-        if (div == 0):
+        if (div == 0): # Image Captioning Reporting
             date = time.strftime('%Y_%m_%d_%H_%M_%S')
             workbook = xlsxwriter.Workbook(self.__class__.excel_path + '/' + date + '_report.xlsx')
             worksheet = workbook.add_worksheet()
@@ -414,7 +406,7 @@ class MainWindow(QMainWindow):
             worksheet.write(row + 3, 1, str(avr[1]))
             worksheet.write(row + 3, 2, str(avr[2]))
             workbook.close()
-        elif (div == 1):
+        elif (div == 1): # Object Detection Reporting
             date = time.strftime('%Y_%m_%d_%H_%M_%S')
             workbook = xlsxwriter.Workbook(self.__class__.excel_path + '/' + date + '_report.xlsx')
             worksheet = workbook.add_worksheet()
@@ -461,7 +453,10 @@ class MainWindow(QMainWindow):
         self.__class__.data_path = fname
 
     def model(self):
-        fname = QFileDialog.getExistingDirectory(self, '모델 위치 선택', '')
+        if (self.radio1.isChecked() or self.radio2.isChecked()):
+            fname = QFileDialog.getExistingDirectory(self, '모델 위치 선택', '')
+        else:
+            fname = QFileDialog.getOpenFileName(self, '', '', 'All File(*);; PyTorch(*.pt)')[0]
         self.__class__.model_path = fname
 
 if __name__ == '__main__':

@@ -1,16 +1,25 @@
 from ultralytics import YOLO
 from baseiou import getIOU_spec
 
-def get_result_yolo(path, model, custom, names):
+def getClasses(names): # get classes list from model.names
+    res = []
+    for n in names: # get classes only for vehicles on the road
+        if (names[n] == 'person' or
+            names[n] == 'bicycle' or
+            names[n] == 'car' or
+            names[n] == 'motorcycle' or
+            names[n] == 'bus' or
+            names[n] == 'truck'):
+            res.append(n)
+    return res
+
+def get_result_yolo(path, model, names):
     pre = []
     result = None
     cls_ref = {}
     for i in range(len(names)):
         cls_ref[names[i]] = i
-    if (custom):
-        result = model(path)
-    else:
-        result = model(path, classes = [0, 1, 2, 3, 5, 7])
+    result = model(path, getClasses(model.names))
     for r in result:
         for b in r.boxes.xywhn:
             pre.append(b.tolist())
