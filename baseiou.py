@@ -84,13 +84,8 @@ def getAccuracy(ref, pre, thres):
     tp = 0
     fp = 0
     fn = 0
-    for r in ref:
-        maxIOU = 0.0
-        for p in pre:
-            iou = getIOU(r, p)
-            maxIOU = max(maxIOU, iou)
-        if (maxIOU == 0.0):
-            fn += 1
+    if (len(ref) > len(pre)):
+        fn += len(ref) - len(pre)
     for p in pre:
         maxIOU = 0.0
         ref_type = -1
@@ -118,8 +113,9 @@ def getPrecision(ref, pre, thres):
             return 1.0
         else:
             return 0.0
-    if (len(pre) == 0):
-        return 0.0
+    else:
+        if (len(pre) == 0):
+            return 0.0
     tp = 0
     for p in pre:
         maxIOU = 0.0
@@ -141,6 +137,9 @@ def getRecall(ref, pre, thres):
         if (len(pre) == 0):
             return 1.0
         else:
+            return 0.0
+    else:
+        if (len(pre) == 0):
             return 0.0
     tp = 0
     for p in pre:
@@ -170,21 +169,15 @@ def getAP(ref, pre, thres):
             return 1.0
         else:
             return 0.0
-    elif (len(pre) == 0):
-        return 0.0
+    else:
+        if (len(pre) == 0):
+            return 0.0
     tmp = []
     tp = 0
     fp = 0
     fn = 0
-    if (len == 0):
-        return 0.0
-    for r in ref:
-        maxIOU = 0.0
-        for p in pre:
-            iou = getIOU(r, p)
-            maxIOU = max(maxIOU, iou)
-        if (maxIOU == 0.0):
-            fn += 1
+    if (length > len(pre)):
+        fn += length - len(pre)
     for p in pre:
         maxIOU = 0.0
         ref_type = -1
@@ -200,11 +193,13 @@ def getAP(ref, pre, thres):
                 tp += 1
             else:
                 fp += 1
+        elif (maxIOU > 0 and maxIOU < thres):
+            fp += 1
 
         if (tp + fp == 0.0):
             tmp.append([0.0, round(tp / length, 1)])
         else:
-            tmp.append([round(tp / (tp + fp), 3), round(tp / length, 1)])
+            tmp.append([round(tp / (tp + fp + fn), 3), round(tp / length, 1)])
 
     # print("[precision, recall] by sequential")
     # print(tmp)
@@ -266,8 +261,9 @@ def getmAP(ref, pre, thres):
             return 1.0
         else:
             return 0.0
-    elif (len(pre) == 0):
-        return 0.0
+    else:
+        if (len(pre) == 0):
+            return 0.0
 
     for r in ref:
         if (str(r[0]) in refcls):
