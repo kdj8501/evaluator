@@ -31,6 +31,10 @@ def get_result_yolo(path, model, names):
                     cls = cls_ref[model.names[int(c)]]
             pre[idx].insert(0, cls)
             idx += 1
+        idx = 0
+        for cf in r.boxes.conf:
+            pre[idx].append(round(float(cf), 2))
+            idx += 1
     return pre
 
 def roi_processing(res, roi):
