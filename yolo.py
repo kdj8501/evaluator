@@ -19,7 +19,7 @@ def get_result_yolo(path, model, names):
     cls_ref = {}
     for i in range(len(names)):
         cls_ref[names[i]] = i
-    result = model(path, getClasses(model.names))
+    result = model(path, classes = getClasses(model.names))
     for r in result:
         for b in r.boxes.xywhn:
             pre.append(b.tolist())

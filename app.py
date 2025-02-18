@@ -1,8 +1,10 @@
-import sys, os, yaml
+import sys, os, yaml, cv2
 import torch
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
+from PyQt5.QtGui import *
 from PIL import Image
+import numpy as np
 import evaluate
 import xlsxwriter
 import paligemma
@@ -18,7 +20,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ################################## Thread for testing ##################################
 class WorkerForResnet(QThread):
     sig = pyqtSignal(int)
-    rep = pyqtSignal(list, list, int)
+    rep = pyqtSignal(str, list, list, int)
 
     def __init__(self, lines, model, path, vocab):
         super().__init__()
@@ -41,6 +43,7 @@ class WorkerForResnet(QThread):
         sum_bleu_score = 0.0
         sum_rouge_score = 0.0
         sum_meteor_score = 0.0
+        date = time.strftime('%Y_%m_%d_%H_%M_%S')
         
         for l in self.lines:
             if self.flag == True:
@@ -65,14 +68,14 @@ class WorkerForResnet(QThread):
             self.sig.emit(int(idx / total * 100))
 
         total_avr = [sum_bleu_score / total, sum_rouge_score / total, sum_meteor_score / total]
-        self.rep.emit(report, total_avr, 0)
+        self.rep.emit(date, report, total_avr, 0)
         print("Total Average Score = b: " + str(total_avr[0]) + " r: " + str(total_avr[1]) + " m: " + str(total_avr[2]))
         del self.model
         torch.cuda.empty_cache()
 
 class WorkerForPali(QThread):
     sig = pyqtSignal(int)
-    rep = pyqtSignal(list, list, int)
+    rep = pyqtSignal(str, list, list, int)
 
     def __init__(self, lines, model, processor, path):
         super().__init__()
@@ -95,6 +98,7 @@ class WorkerForPali(QThread):
         sum_bleu_score = 0.0
         sum_rouge_score = 0.0
         sum_meteor_score = 0.0
+        date = time.strftime('%Y_%m_%d_%H_%M_%S')
         
         for l in self.lines:
             if self.flag == True:
@@ -119,14 +123,15 @@ class WorkerForPali(QThread):
             self.sig.emit(int(idx / total * 100))
 
         total_avr = [sum_bleu_score / total, sum_rouge_score / total, sum_meteor_score / total]
-        self.rep.emit(report, total_avr, 0)
+        self.rep.emit(date, report, total_avr, 0)
         print("Total Average Score = b: " + str(total_avr[0]) + " r: " + str(total_avr[1]) + " m: " + str(total_avr[2]))
         del self.model
         torch.cuda.empty_cache()
 
 class WorkerForYolo(QThread):
     sig = pyqtSignal(int)
-    rep = pyqtSignal(list, list, int)
+    rep = pyqtSignal(str, list, list, int)
+    disp = pyqtSignal(np.ndarray)
 
     def __init__(self, model, path, thres, roi):
         super().__init__()
@@ -140,6 +145,7 @@ class WorkerForYolo(QThread):
         self.flag = True
 
     def run(self):
+        date = time.strftime('%Y_%m_%d_%H_%M_%S')
         report = []
         idx = 0
         sum_accuracy = 0.0
@@ -170,10 +176,44 @@ class WorkerForYolo(QThread):
                 ref.append([int(tt[0]), float(tt[1]), float(tt[2]), float(tt[3]), float(tt[4])])
             pre = yolo.get_result_yolo(self.path + "/images/" + d + ".jpg", self.model, names)
             #####
+            print(pre)
             pre = yolo.driver_processing(pre)
+            print(pre)
             ref = yolo.roi_processing(ref, self.roi)
+            print(pre)
             pre = yolo.roi_processing(pre, self.roi)
+            print(pre)
             #####
+            ############################# DISPLAY #############################
+            if not os.path.exists('report/' + date):
+                os.makedirs('report/' + date)
+            img = cv2.imread(self.path + '/images/' + d + '.jpg')
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            h, w, c = img.shape
+            for r in ref:
+                c_x, c_y = (int(r[1] * w), int(r[2] * h))
+                c_w, c_h = (int(r[3] * w), int(r[4] * h))
+                c_x1, c_x2 = (int(c_x - c_w / 2), int(c_x + c_w / 2))
+                c_y1, c_y2 = (int(c_y - c_h / 2), int(c_y + c_h / 2))
+                cv2.rectangle(img, (c_x1, c_y1), (c_x2, c_y2), (0, 255, 0), 2)
+                cv2.putText(img, str(r[0]), (c_x1 + 10, c_y1 + 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
+            for p in pre:
+                c_x, c_y = (int(p[1] * w), int(p[2] * h))
+                c_w, c_h = (int(p[3] * w), int(p[4] * h))
+                c_x1, c_x2 = (int(c_x - c_w / 2), int(c_x + c_w / 2))
+                c_y1, c_y2 = (int(c_y - c_h / 2), int(c_y + c_h / 2))
+                cv2.rectangle(img, (c_x1, c_y1), (c_x2, c_y2), (0, 0, 255), 2)
+                cv2.putText(img, str(p[0]), (c_x2 - 30, c_y1 + 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
+            c_x, c_y = (int(self.roi[0] * w), int(self.roi[1] * h))
+            c_w, c_h = (int(self.roi[2] * w), int(self.roi[3] * h))
+            c_x1, c_x2 = (int(c_x - c_w / 2), int(c_x + c_w / 2))
+            c_y1, c_y2 = (int(c_y - c_h / 2), int(c_y + c_h / 2))
+            cv2.rectangle(img, (c_x1, c_y1), (c_x2, c_y2), (255, 0, 0), 3)
+            self.disp.emit(img)
+            save_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            save_img = Image.fromarray(img, 'RGB')
+            save_img.save('report/' + date + '/' + d + '.jpg', 'JPEG')
+            ####################################################################
             ref_cls = [[], [], [], [], [], []]
             pre_cls = [[], [], [], [], [], []]
             ap_cls = [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0]
@@ -212,16 +252,22 @@ class WorkerForYolo(QThread):
                 continue
             total_cls_avr[i] = total_cls_sum[i] / total_cls[i]
 
-        self.rep.emit(report, [total_avr_prc, total_avr_rec, total_avr_acc, total_avr_map,
+        self.rep.emit(date, report, [total_avr_prc, total_avr_rec, total_avr_acc, total_avr_map,
                                total_cls_avr[0], total_cls_avr[1], total_cls_avr[2],
                                total_cls_avr[3], total_cls_avr[4], total_cls_avr[5]], 1)
         print("Total Average Score = " + str([total_avr_prc, total_avr_rec, total_avr_acc, total_avr_map]))
         del self.model
         torch.cuda.empty_cache()
+        f = open('report/' + date + '/' + 'class_id.txt', 'w')
+        lidx = 0
+        for n in names:
+            f.write(n + ": " + str(lidx) + '\n')
+            lidx += 1
+        f.close()
 
 class WorkerForSeg(QThread):
     sig = pyqtSignal(int)
-    rep = pyqtSignal(list, list, int)
+    rep = pyqtSignal(str, list, list, int)
 
     def __init__(self, model, path):
         super().__init__()
@@ -233,7 +279,7 @@ class WorkerForSeg(QThread):
         self.flag = True
 
     def run(self):
-        ''
+        date = time.strftime('%Y_%m_%d_%H_%M_%S')
 
 ################################## GUI ##################################
 class MainWindow(QMainWindow):
@@ -248,21 +294,31 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         self.setWindowTitle("Model Evaluator v2.0")
-        self.setGeometry(300, 300, 400, 210)
-        self.setFixedSize(400, 210)
+        self.setGeometry(300, 300, 720, 210)
+        self.setFixedSize(720, 210)
 
         self.pBar = QProgressBar(self)
         self.pBar.move(20, 20)
         self.pBar.resize(370, 20)
         self.pBar.setValue(0)
-
-        self.l_thres = QLabel("Threshold(%)", self)
-        self.l_thres.move(80, 75)
+        img = np.zeros((512, 512, 3), np.uint8)
+        h, w, c = img.shape
+        qImg = QImage(img.data, w, h, w * c, QImage.Format_RGB888)
+        pixmap = QPixmap.fromImage(qImg)
+        pixmap = pixmap.scaled(320, 200)
+        self.display = QLabel(self)
+        self.display.setPixmap(pixmap)
+        self.display.move(395, 5)
+        self.display.setFixedSize(320, 200)
+        self.display.setScaledContents(True)
+        self.l_thres = QLabel("IOU Threshold(%)", self)
+        self.l_thres.move(55, 75)
         self.t_thres = QLineEdit("50", self)
         self.t_thres.setFixedSize(30, 20)
         self.t_thres.move(160, 80)
-        self.l_roi = QLabel("ROI [x, y, w, h]", self)
-        self.l_roi.move(50, 45)
+        self.l_roi = QLabel("ROI norm[x, y, w, h]", self)
+        self.l_roi.move(20, 50)
+        self.l_roi.setFixedSize(150, 20)
         self.t_x = QLineEdit("0.5", self)
         self.t_x.setFixedSize(40, 20)
         self.t_x.move(150, 50)
@@ -379,13 +435,13 @@ class MainWindow(QMainWindow):
                 self.worker.start()
                 self.worker.sig.connect(self.process)
                 self.worker.rep.connect(self.report)
+                self.worker.disp.connect(self.display_img)
                 del self.model
                 torch.cuda.empty_cache()
 
-    def report(self, rep, avr, div):
+    def report(self, name, rep, avr, div):
         if (div == 0): # Image Captioning Reporting
-            date = time.strftime('%Y_%m_%d_%H_%M_%S')
-            workbook = xlsxwriter.Workbook(self.__class__.excel_path + '/' + date + '_report.xlsx')
+            workbook = xlsxwriter.Workbook(self.__class__.excel_path + '/' + name + '_report.xlsx')
             worksheet = workbook.add_worksheet()
             worksheet.write(0, 0, "image_name")
             worksheet.write(0, 1, "reference")
@@ -408,7 +464,7 @@ class MainWindow(QMainWindow):
             workbook.close()
         elif (div == 1): # Object Detection Reporting
             date = time.strftime('%Y_%m_%d_%H_%M_%S')
-            workbook = xlsxwriter.Workbook(self.__class__.excel_path + '/' + date + '_report.xlsx')
+            workbook = xlsxwriter.Workbook(self.__class__.excel_path + '/' + name + '_report.xlsx')
             worksheet = workbook.add_worksheet()
             worksheet.write(0, 0, "image_name")
             worksheet.write(0, 1, "precision")
@@ -443,6 +499,13 @@ class MainWindow(QMainWindow):
         self.pBar.setValue(num)
         if (num == 100):
             self.testBtn.setText("테스트 시작")
+
+    def display_img(self, img):
+        h, w, c = img.shape
+        qImg = QImage(img.data, w, h, w * c, QImage.Format_RGB888)
+        pixmap = QPixmap.fromImage(qImg)
+        pixmap = pixmap.scaled(320, 200)
+        self.display.setPixmap(pixmap)
 
     def excel(self):
         fname = QFileDialog.getExistingDirectory(self, '결과 출력 폴더 선택', '')
