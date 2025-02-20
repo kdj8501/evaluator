@@ -679,6 +679,7 @@ class MainWindow(QMainWindow):
                 self.display_debug_img(img)
                 self.updateIndex()
             self.updateList()
+            self.showMessage('데이터 폴더를 성공적으로 불러왔습니다.')
         else:
             self.showMessage("이미지 폴더가 발견되지 않았습니다.")
 
@@ -707,6 +708,7 @@ class MainWindow(QMainWindow):
                     self.model_path = ''
                     return
                 self.model = resnet.load_trained_model(self.model_path + "/final_model.pth", self.model_path + "/vocab.pkl")
+                self.showMessage('모델을 성공적으로 불러왔습니다.')
             elif (self.radio2.isChecked()):
                 self.processor = PaliGemmaProcessor.from_pretrained(self.model_path, local_files_only=True)
                 self.model = PaliGemmaForConditionalGeneration.from_pretrained(
@@ -714,12 +716,15 @@ class MainWindow(QMainWindow):
                         torch_dtype=torch.bfloat16,
                         local_files_only=True
                     ).to(self.device)
+                self.showMessage('모델을 성공적으로 불러왔습니다.')
             elif (self.radio3.isChecked()):
                 self.processor = SegformerImageProcessor.from_pretrained(self.model_path)
                 self.model = SegformerForSemanticSegmentation.from_pretrained(self.model_path, trust_remote_code = True)
                 self.model.to(self.device)
+                self.showMessage('모델을 성공적으로 불러왔습니다.')
             elif (self.radio4.isChecked()):
                 self.model = YOLO(fname)
+                self.showMessage('모델을 성공적으로 불러왔습니다.')
 
     def updateIndex(self):
         self.l_count.setText(str(self.indexes[0]) + "/" + str(self.indexes[1]))
