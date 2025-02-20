@@ -124,7 +124,7 @@ class WorkerForYolo(QThread):
     sig = pyqtSignal(int)
     rep = pyqtSignal(str, list, list, int)
     disp = pyqtSignal(np.ndarray)
-    save = pyqtSignal(np.ndarray)
+    save = pyqtSignal(np.ndarray, str, str)
 
     def __init__(self, model, path, thres, roi):
         super().__init__()
@@ -193,8 +193,7 @@ class WorkerForYolo(QThread):
                 cv2.putText(img, str(p[0]), (c_x2 - 30, c_y1 + 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
                 cv2.putText(img, str(p[5]), (c_x2 - 100, c_y2 - 20), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
             self.disp.emit(img)
-            save_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            self.save.emit(save_img, date, d)
+            self.save.emit(img, date, d)
             ####################################################################
             ref_cls = [[], [], [], [], [], []]
             pre_cls = [[], [], [], [], [], []]
@@ -238,12 +237,6 @@ class WorkerForYolo(QThread):
                                total_cls_avr[0], total_cls_avr[1], total_cls_avr[2],
                                total_cls_avr[3], total_cls_avr[4], total_cls_avr[5]], 1)
         print("Total Average Score = " + str([total_avr_prc, total_avr_rec, total_avr_acc, total_avr_map]))
-        f = open('report/' + date + '/' + 'class_id.txt', 'w')
-        lidx = 0
-        for n in names:
-            f.write(n + ": " + str(lidx) + '\n')
-            lidx += 1
-        f.close()
 
 class WorkerForSeg(QThread):
     sig = pyqtSignal(int)
@@ -446,10 +439,10 @@ class MainWindow(QMainWindow):
         self.thres = int(self.t_thres.text()) / 100
 
     def save_yolo(self, img, date, name):
-        if not os.path.exists(self.excel_path + date):
-            os.makedirs(self.excel_path + date)
+        if not os.path.exists(self.excel_path + '/' + date):
+            os.makedirs(self.excel_path + '/' + date)
         save_img = Image.fromarray(img, 'RGB')
-        save_img.save(self.excel_path + date + '/' + name + '.jpg', 'JPEG')
+        save_img.save(self.excel_path + "/" + date + '/' + name + '.jpg', 'JPEG')
 
     def test(self):
         if (self.data_path == ''):
