@@ -124,6 +124,7 @@ class WorkerForYolo(QThread):
     sig = pyqtSignal(int)
     rep = pyqtSignal(str, list, list, int)
     disp = pyqtSignal(np.ndarray)
+    save = pyqtSignal(np.ndarray)
 
     def __init__(self, model, path, thres, roi):
         super().__init__()
@@ -173,8 +174,6 @@ class WorkerForYolo(QThread):
             pre = yolo.roi_processing(pre, self.roi)
             #####
             ############################# DISPLAY #############################
-            if not os.path.exists('report/' + date):
-                os.makedirs('report/' + date)
             img = cv2.imread(self.path + '/images/' + d + '.jpg')
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             h, w, c = img.shape
@@ -195,8 +194,7 @@ class WorkerForYolo(QThread):
                 cv2.putText(img, str(p[5]), (c_x2 - 100, c_y2 - 20), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
             self.disp.emit(img)
             save_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            save_img = Image.fromarray(img, 'RGB')
-            save_img.save('report/' + date + '/' + d + '.jpg', 'JPEG')
+            self.save.emit(save_img, date, d)
             ####################################################################
             ref_cls = [[], [], [], [], [], []]
             pre_cls = [[], [], [], [], [], []]
@@ -447,6 +445,12 @@ class MainWindow(QMainWindow):
     def setThres(self):
         self.thres = int(self.t_thres.text()) / 100
 
+    def save_yolo(self, img, date, name):
+        if not os.path.exists(self.excel_path + date):
+            os.makedirs(self.excel_path + date)
+        save_img = Image.fromarray(img, 'RGB')
+        save_img.save(self.excel_path + date + '/' + name + '.jpg', 'JPEG')
+
     def test(self):
         if (self.data_path == ''):
             self.showMessage('데이터 폴더를 선택해주세요.')
@@ -495,6 +499,7 @@ class MainWindow(QMainWindow):
                 self.worker.sig.connect(self.process)
                 self.worker.rep.connect(self.report)
                 self.worker.disp.connect(self.display_img)
+                self.worker.save.connect(self.save_yolo)
 
     def report(self, name, rep, avr, div):
         if (div == 0): # Image Captioning Reporting
