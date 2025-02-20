@@ -10,7 +10,6 @@ import torchvision.transforms as transforms
 EMBED_DIM = 256
 HIDDEN_DIM = 512
 MAX_SEQ_LENGTH = 25
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class Vocabulary:
     def __init__(self, freq_threshold = 5):
@@ -117,14 +116,14 @@ class ImageCaptioningModel(nn.Module):
         return self.decoder.generate(features, max_len = max_len)
 
 ###################### function for load trained model ######################
-def load_trained_model(path, vocab_path):
+def load_trained_model(path, vocab_path, device):
     with open(vocab_path, "rb") as f:
         vocab = pickle.load(f)
     encoder = ResNetEncoder(embed_dim = EMBED_DIM)
     decoder = DecoderLSTM(EMBED_DIM, HIDDEN_DIM, vocab)
-    model = ImageCaptioningModel(encoder, decoder).to(DEVICE)
+    model = ImageCaptioningModel(encoder, decoder).to(device)
 
-    state_dict = torch.load(path, map_location = DEVICE, weights_only = True)
+    state_dict = torch.load(path, map_location = device, weights_only = True)
     model.load_state_dict(state_dict['model_state_dict'])
     model.eval()
     return model
@@ -139,11 +138,11 @@ transform_inference = transforms.Compose(
     ]
 )
 
-def generate_caption_for_image(img, model, vocab_path):
+def generate_caption_for_image(img, model, vocab_path, device):
     with open(vocab_path, "rb") as f:
         vocab = pickle.load(f)
     pil_img = img.convert("RGB")
-    img_tensor = transform_inference(pil_img).unsqueeze(0).to(DEVICE)
+    img_tensor = transform_inference(pil_img).unsqueeze(0).to(device)
 
     with torch.no_grad():
         output_indices = model.generate(img_tensor, max_len = MAX_SEQ_LENGTH)

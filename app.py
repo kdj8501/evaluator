@@ -1,28 +1,22 @@
-import sys, os, yaml, cv2
-import torch
+import sys, os, yaml, cv2, torch, evaluate, xlsxwriter
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PIL import Image
 import numpy as np
-import evaluate
-import xlsxwriter
-import paligemma
-import resnet
-import yolo, baseiou
+import paligemma, resnet, yolo, segformer, baseiou
 from resnet import Vocabulary
 from transformers import PaliGemmaForConditionalGeneration, PaliGemmaProcessor
+from transformers import SegformerImageProcessor, SegformerForSemanticSegmentation
 from ultralytics import YOLO
 import time
-
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 ################################## Thread for testing ##################################
 class WorkerForResnet(QThread):
     sig = pyqtSignal(int)
     rep = pyqtSignal(str, list, list, int)
 
-    def __init__(self, lines, model, path, vocab):
+    def __init__(self, lines, model, path, vocab, device):
         super().__init__()
         self.model = model
         self.lines = lines
@@ -32,6 +26,7 @@ class WorkerForResnet(QThread):
         self.rouge = evaluate.load("rouge")
         self.meteor = evaluate.load("meteor")
         self.flag = False
+        self.device = device
 
     def thread_stop(self):
         self.flag = True
@@ -50,7 +45,7 @@ class WorkerForResnet(QThread):
                 return
             img = Image.open(self.path + "/Images/" + l.split("\n")[0].split(",")[0])
             answer = l.split("\n")[0].split(",")[1]
-            generate = resnet.generate_caption_for_image(img, self.model, self.vocab)
+            generate = resnet.generate_caption_for_image(img, self.model, self.vocab, self.device)
             idx += 1
             ref = []
             pre = []
@@ -75,7 +70,7 @@ class WorkerForPali(QThread):
     sig = pyqtSignal(int)
     rep = pyqtSignal(str, list, list, int)
 
-    def __init__(self, lines, model, processor, path):
+    def __init__(self, lines, model, processor, path, device):
         super().__init__()
         self.model = model
         self.processor = processor
@@ -85,6 +80,7 @@ class WorkerForPali(QThread):
         self.rouge = evaluate.load("rouge")
         self.meteor = evaluate.load("meteor")
         self.flag = False
+        self.device = device
 
     def thread_stop(self):
         self.flag = True
@@ -103,7 +99,7 @@ class WorkerForPali(QThread):
                 return
             img = self.path + "/Images/" + l.split("\n")[0].split(",")[0]
             answer = l.split("\n")[0].split(",")[1]
-            generate = paligemma.get_result_pali(img, "describe en", self.model, self.processor)
+            generate = paligemma.get_result_pali(img, "describe en", self.model, self.processor, self.device)
             idx += 1
             ref = []
             pre = []
@@ -160,7 +156,7 @@ class WorkerForYolo(QThread):
         total_cls = [0, 0, 0, 0, 0, 0]
         total_cls_avr = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
         for d in data:
-            if (self.flag == True):
+            if (self.flag):
                 return
             idx += 1
             f = open(self.path + "/labels/" + d + ".txt", 'r')
@@ -254,19 +250,52 @@ class WorkerForYolo(QThread):
 class WorkerForSeg(QThread):
     sig = pyqtSignal(int)
     rep = pyqtSignal(str, list, list, int)
+    disp = pyqtSignal(np.ndarray)
 
-    def __init__(self, model, path):
+    def __init__(self, path, model, processor, device):
         super().__init__()
         self.model = model
         self.path = path
         self.flag = False
+        self.device = device
+        self.processor = processor
 
     def thread_stop(self):
         self.flag = True
 
     def run(self):
         date = time.strftime('%Y_%m_%d_%H_%M_%S')
-
+        orig_data = os.listdir(self.path + "/images")
+        label_data = os.listdir(self.path + '/labels')
+        total = len(orig_data)
+        report = []
+        sum_iou = 0.0
+        sum_dice = 0.0
+        idx = 0
+        for d in label_data:
+            if (self.flag):
+                return
+            image = Image.open(self.path + '/labels/' + d)
+            image = np.array(image)
+            if image.shape[2] == 4:
+                image = image[:, :, :3]
+            result = segformer.get_result_seg(self.path + '/images/' + orig_data[idx], self.model, self.processor, self.device)
+            if result.shape[2] == 4:
+                result = result[:, :, :3]
+            iou = baseiou.getIOU_np(image, result)
+            dice = baseiou.getDiceCoefficient(image, result)
+            sum_iou += iou
+            sum_dice += dice
+            report.append([orig_data[idx], iou, dice])
+            print("[" + str(idx + 1) + "/" + str(total) + "] img_name: " + d + ", [iou, DiceCoefficient]: " + str([iou, dice]))
+            self.sig.emit(int((idx + 1) / total * 100))
+            self.disp.emit(result)
+            idx += 1
+        total_avr_iou = sum_iou / total
+        total_avr_dice = sum_dice / total
+        self.rep.emit(date, report, [total_avr_iou, total_avr_dice], 2)
+        print("Total Average Score = " + str([total_avr_iou, total_avr_dice]))     
+        
 ################################## GUI ##################################
 class MainWindow(QMainWindow):
 
@@ -280,10 +309,11 @@ class MainWindow(QMainWindow):
         self.model_path = ""
         self.thres = 0.5
         self.indexes = [0, 0, [], []]
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         img = np.zeros((1080, 1920, 3), np.uint8)
         self.curImage = img.copy()
 
-        self.setWindowTitle("Model Evaluator v2.2")
+        self.setWindowTitle("Model Evaluator v2.3")
         self.setGeometry(50, 50, 1790, 910)
         self.setFixedSize(1790, 910)
 
@@ -304,7 +334,6 @@ class MainWindow(QMainWindow):
         self.debug_display = QLabel(self)
         self.debug_display.move(420, 50)
         self.debug_display.setFixedSize(self.disp_size[0], self.disp_size[1])
-        self.display_debug_img(img)
 
         self.b_left = QPushButton('<', self)
         self.b_left.move(420, 10)
@@ -330,7 +359,6 @@ class MainWindow(QMainWindow):
         self.display = QLabel(self)
         self.display.move(10, 365)
         self.display.setFixedSize(400, 250)
-        self.display_img(img)
 
         self.pBar = QProgressBar(self)
         self.pBar.move(10, 640)
@@ -361,11 +389,10 @@ class MainWindow(QMainWindow):
         self.radio2.setFixedSize(150, 20)
         self.l_segmentation = QLabel('Segmentation', self)
         self.l_segmentation.move(20, 730)
-        self.radio3 = QRadioButton("Segmentation", self)
-        self.radio3.move(280, 735)
+        self.radio3 = QRadioButton("SegFormer", self)
+        self.radio3.move(160, 735)
         self.radio3.setFixedSize(150, 20)
-        self.radio3.setEnabled(False)
-        self.l_segmentation = QLabel('Object Detecting', self)
+        self.l_segmentation = QLabel('Object Detection', self)
         self.l_segmentation.move(20, 750)
         self.radio4 = QRadioButton("YOLO", self)
         self.radio4.move(160, 755)
@@ -391,6 +418,9 @@ class MainWindow(QMainWindow):
         self.l_report = QLabel('Export Folder: ' + self.excel_path, self)
         self.l_report.setFixedSize(600, 20)
         self.l_report.move(10, 860)
+
+        self.display_img(img)
+        self.display_debug_img(img)
 
     def resetROI(self):
         self.roi[0] = 0.5
@@ -439,7 +469,7 @@ class MainWindow(QMainWindow):
                 lines = f.readlines()
                 f.close()
                 test = lines[:-1]
-                self.worker = WorkerForResnet(test, self.model, self.data_path, self.model_path + "/vocab.pkl")
+                self.worker = WorkerForResnet(test, self.model, self.data_path, self.model_path + "/vocab.pkl", self.device)
                 self.worker.start()
                 self.worker.sig.connect(self.process)
                 self.worker.rep.connect(self.report)
@@ -449,16 +479,16 @@ class MainWindow(QMainWindow):
                 lines = f.readlines()
                 f.close()
                 test = lines[:-1]
-                self.processor = PaliGemmaProcessor.from_pretrained(self.model_path, local_files_only=True)
-                self.worker = WorkerForPali(test, self.model, self.processor, self.data_path)
+                self.worker = WorkerForPali(test, self.model, self.processor, self.data_path, self.device)
                 self.worker.start()
                 self.worker.sig.connect(self.process)
                 self.worker.rep.connect(self.report)
-            elif (self.radio3.isChecked()): # Segmentation
-                self.worker = WorkerForSeg(self.model, self.data_path)
+            elif (self.radio3.isChecked()): # SegFormer
+                self.worker = WorkerForSeg(self.data_path, self.model, self.processor, self.device)
                 self.worker.start()
                 self.worker.sig.connect(self.process)
                 self.worker.rep.connect(self.report)
+                self.worker.disp.connect(self.display_img)
             elif (self.radio4.isChecked()): # YOLO
                 self.worker = WorkerForYolo(self.model, self.data_path, self.thres, self.roi)
                 self.worker.start()
@@ -520,6 +550,21 @@ class MainWindow(QMainWindow):
             worksheet.write(row + 1, 9, str(avr[8]))
             worksheet.write(row + 1, 10, str(avr[9]))
             workbook.close()
+        elif (div == 2): # Segmentation Reporting
+            workbook = xlsxwriter.Workbook(self.excel_path + '/' + name + '_report.xlsx')
+            worksheet = workbook.add_worksheet()
+            worksheet.write(0, 0, "image_name")
+            worksheet.write(0, 1, "iou")
+            worksheet.write(0, 2, "DiceCoefficient")
+            row = 1
+            for r in rep:
+                for i in range(len(r)):
+                    worksheet.write(row, i, r[i])
+                row += 1
+            worksheet.write(row + 1, 0, "total average score")
+            worksheet.write(row + 1, 1, str(avr[0]))
+            worksheet.write(row + 1, 2, str(avr[1]))
+            workbook.close()
 
     def process(self, num):
         self.pBar.setValue(num)
@@ -530,11 +575,12 @@ class MainWindow(QMainWindow):
     def display_img(self, image):
         img = image.copy()
         h, w, c = img.shape
-        c_x, c_y = (int(self.roi[0] * w), int(self.roi[1] * h))
-        c_w, c_h = (int(self.roi[2] * w), int(self.roi[3] * h))
-        c_x1, c_x2 = (int(c_x - c_w / 2), int(c_x + c_w / 2))
-        c_y1, c_y2 = (int(c_y - c_h / 2), int(c_y + c_h / 2))
-        cv2.rectangle(img, (c_x1, c_y1), (c_x2, c_y2), (255, 0, 0), 3)
+        if (self.radio4.isChecked()):
+            c_x, c_y = (int(self.roi[0] * w), int(self.roi[1] * h))
+            c_w, c_h = (int(self.roi[2] * w), int(self.roi[3] * h))
+            c_x1, c_x2 = (int(c_x - c_w / 2), int(c_x + c_w / 2))
+            c_y1, c_y2 = (int(c_y - c_h / 2), int(c_y + c_h / 2))
+            cv2.rectangle(img, (c_x1, c_y1), (c_x2, c_y2), (255, 0, 0), 3)
         qImg = QImage(img.data, w, h, w * c, QImage.Format_RGB888)
         pixmap = QPixmap.fromImage(qImg)
         pixmap = pixmap.scaled(400, 250)
@@ -550,7 +596,16 @@ class MainWindow(QMainWindow):
             elif (self.radio2.isChecked()):
                 ''
             elif (self.radio3.isChecked()):
-                ''
+                if img.shape[2] == 4:
+                    img = img[:, :, :3]
+                result = segformer.get_result_seg(img, self.model, self.processor, self.device)
+                img = cv2.resize(img, (256, 256))
+                if result.shape[2] == 4:
+                    result = result[:, :, :3]
+                r_iou = baseiou.getIOU_np(img, result)
+                r_dice = baseiou.getDiceCoefficient(img, result)
+                self.calcReport.setText('IOU: ' + str(r_iou) + ', DiceCoefficient: ' + str(r_dice))
+                img = result
             elif (self.radio4.isChecked()):
                 names = []
                 with open(self.data_path + '/data.yaml') as f:
@@ -592,11 +647,12 @@ class MainWindow(QMainWindow):
                 r_acc = round(baseiou.getAccuracy(ref, pre, self.thres), 2)
                 r_map = round(baseiou.getmAP(ref, pre, self.thres), 2)
                 self.calcReport.setText('P: ' + str(r_p) + ', R: ' + str(r_r) + ', Acc: ' + str(r_acc) + ', mAP: ' + str(r_map))
-        c_x, c_y = (int(self.roi[0] * w), int(self.roi[1] * h))
-        c_w, c_h = (int(self.roi[2] * w), int(self.roi[3] * h))
-        c_x1, c_x2 = (int(c_x - c_w / 2), int(c_x + c_w / 2))
-        c_y1, c_y2 = (int(c_y - c_h / 2), int(c_y + c_h / 2))
-        cv2.rectangle(img, (c_x1, c_y1), (c_x2, c_y2), (255, 0, 0), 3)
+                c_x, c_y = (int(self.roi[0] * w), int(self.roi[1] * h))
+                c_w, c_h = (int(self.roi[2] * w), int(self.roi[3] * h))
+                c_x1, c_x2 = (int(c_x - c_w / 2), int(c_x + c_w / 2))
+                c_y1, c_y2 = (int(c_y - c_h / 2), int(c_y + c_h / 2))
+                cv2.rectangle(img, (c_x1, c_y1), (c_x2, c_y2), (255, 0, 0), 3)
+        h, w, c = img.shape
         qImg = QImage(img.data, w, h, w * c, QImage.Format_RGB888)
         pixmap = QPixmap.fromImage(qImg)
         pixmap = pixmap.scaled(self.disp_size[0], self.disp_size[1])
@@ -623,29 +679,45 @@ class MainWindow(QMainWindow):
                 self.display_debug_img(img)
                 self.updateIndex()
             self.updateList()
+        else:
+            self.showMessage("이미지 폴더가 발견되지 않았습니다.")
 
     def sel_model(self):
         if not (self.model == None):
             torch.cuda.empty_cache()
             del (self.model)
-        if (self.radio1.isChecked() or self.radio2.isChecked()):
+        if (self.radio1.isChecked() or self.radio2.isChecked() or self.radio3.isChecked()):
             fname = QFileDialog.getExistingDirectory(self, '모델 위치 선택', '')
         else:
             fname = QFileDialog.getOpenFileName(self, '', '', 'All File(*);; PyTorch(*.pt)')[0]
 
         if (fname):
+            if (fname == ''):
+                self.showMessage('올바른 모델을 선택해주세요.')
+                return
             self.model_path = fname
             self.l_model.setText('Model: ' + fname)
             if (self.radio1.isChecked()):
+                if (os.path.isdir(self.model_path + '/final_model.pth')):
+                    self.showMessage('final_model.pth 파일이 감지되지 않았습니다.')
+                    self.model_path = ''
+                    return
+                if (os.path.isdir(self.model_path + '/vocab.pkl')):
+                    self.showMessage('vocab.pkl 파일이 감지되지 않았습니다.')
+                    self.model_path = ''
+                    return
                 self.model = resnet.load_trained_model(self.model_path + "/final_model.pth", self.model_path + "/vocab.pkl")
             elif (self.radio2.isChecked()):
+                self.processor = PaliGemmaProcessor.from_pretrained(self.model_path, local_files_only=True)
                 self.model = PaliGemmaForConditionalGeneration.from_pretrained(
                         self.model_path,
                         torch_dtype=torch.bfloat16,
                         local_files_only=True
-                    ).to(DEVICE)
+                    ).to(self.device)
             elif (self.radio3.isChecked()):
-                self.model = None
+                self.processor = SegformerImageProcessor.from_pretrained(self.model_path)
+                self.model = SegformerForSemanticSegmentation.from_pretrained(self.model_path, trust_remote_code = True)
+                self.model.to(self.device)
             elif (self.radio4.isChecked()):
                 self.model = YOLO(fname)
 
