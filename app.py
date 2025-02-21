@@ -273,6 +273,8 @@ class WorkerForSeg(QThread):
             result = segformer.get_result_seg(self.path + '/images/' + orig_data[idx], self.model, self.processor, self.device)
             if result.shape[2] == 4:
                 result = result[:, :, :3]
+            h, w, c = result.shape
+            image = cv2.resize(image, (w, h))
             iou = baseiou.getIOU_np(image, result)
             dice = baseiou.getDiceCoefficient(image, result)
             sum_iou += iou
@@ -597,7 +599,8 @@ class MainWindow(QMainWindow):
                 if img.shape[2] == 4:
                     img = img[:, :, :3]
                 result = segformer.get_result_seg(img, self.model, self.processor, self.device)
-                img = cv2.resize(img, (256, 256))
+                h, w, c = result.shape
+                img = cv2.resize(img, (w, h))
                 if result.shape[2] == 4:
                     result = result[:, :, :3]
                 r_iou = baseiou.getIOU_np(img, result)
